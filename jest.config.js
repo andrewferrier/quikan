@@ -14,4 +14,5 @@ export default {
     ],
   },
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  transformIgnorePatterns: ['node_modules/(?!(ical\\.js)/)'],
 };

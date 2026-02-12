@@ -3,6 +3,7 @@ import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { typeDefs } from './graphql/schema.js';
@@ -24,9 +25,18 @@ async function startServer() {
 
   await server.start();
 
+  // Rate limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
   // Middleware
   app.use(cors());
   app.use(bodyParser.json());
+  app.use(limiter);
 
   // GraphQL endpoint
   app.use('/graphql', expressMiddleware(server));

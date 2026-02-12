@@ -1,6 +1,15 @@
 import { parseVTODO, cardToVTODO } from '../storage/vtodo';
 import { Card } from '../types';
 
+// Mock ical.js module
+jest.mock('ical.js', () => {
+  const actualICAL = jest.requireActual('ical.js');
+  return {
+    __esModule: true,
+    default: actualICAL.default || actualICAL,
+  };
+});
+
 describe('VTODO Storage', () => {
   describe('parseVTODO', () => {
     it('should parse a valid VTODO', () => {
