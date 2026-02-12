@@ -41,14 +41,16 @@ async function startServer() {
   // GraphQL endpoint
   app.use('/graphql', expressMiddleware(server));
 
-  // Serve static files from the client build
-  const clientPath = path.join(__dirname, '../client');
-  app.use(express.static(clientPath));
+  // Serve static files from the client build only in production
+  if (process.env.NODE_ENV === 'production') {
+    const clientPath = path.join(__dirname, '../client');
+    app.use(express.static(clientPath));
 
-  // Serve index.html for all other routes (SPA)
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(clientPath, 'index.html'));
-  });
+    // Serve index.html for all other routes (SPA)
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(clientPath, 'index.html'));
+    });
+  }
 
   app.listen(PORT, () => {
     console.log(`🚀 Server ready at http://localhost:${PORT}`);
