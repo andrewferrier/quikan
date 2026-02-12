@@ -1,39 +1,88 @@
 import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import Card from './Card';
+import { formatDue } from '../utils/dueDate';
 
 interface CardType {
   id: string;
   summary: string;
+  description?: string | null;
   column: string;
-  sequence: number;
+  priority?: number | null;
+  due?: string | null;
+  dueHasTime?: boolean | null;
+  completed?: string | null;
+  isRecurring?: boolean | null;
+  isRecurringChild?: boolean | null;
 }
 
 interface ColumnProps {
   id: string;
   name: string;
   cards: CardType[];
+  hiddenCount: number;
+  onCardClick: (card: CardType) => void;
 }
 
-const Column: React.FC<ColumnProps> = ({ id, name, cards }) => {
-  const { setNodeRef } = useDroppable({ id });
+const COLUMN_EMOJIS: Record<string, string> = {
+  'todo': '📋',
+  'todo-dated': '🗓️',
+  'todo-this-week': '📅',
+  'todo-tomorrow': '🌅',
+  'todo-today': '🔴',
+  'in-progress': '🔄',
+  'done': '✅',
+};
 
-  // Format column name for display
-  const displayName = name
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+const Column: React.FC<ColumnProps> = ({ id, name, cards, hiddenCount, onCardClick }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  const cardCount = `${cards.length} card${cards.length !== 1 ? 's' : ''}`;
+
+  let summaryText: React.ReactNode;
+  if (id === 'done') {
+    summaryText =
+      hiddenCount > 0 ? `${cardCount} (${hiddenCount} not shown as >30 days)` : cardCount;
+  } else {
+    const now = new Date();
+    const overdueCount = cards.filter(
+      (card) => card.due && formatDue(card.due, card.dueHasTime ?? false, now).color === 'red'
+    ).length;
+    if (overdueCount > 0) {
+      summaryText = (
+        <>{cardCount}, <span className="text-red-500">{overdueCount} overdue</span></>
+      );
+    } else {
+      summaryText = cardCount;
+    }
+  }
 
   return (
-    <div className="flex-1 min-w-[300px] bg-gray-100 rounded-lg p-4">
-      <h2 className="text-lg font-semibold mb-4 text-gray-700">{displayName}</h2>
-      <div ref={setNodeRef} className="space-y-3 min-h-[200px]">
-        <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-          {cards.map((card) => (
-            <Card key={card.id} id={card.id} summary={card.summary} />
-          ))}
-        </SortableContext>
+    <div
+      ref={setNodeRef}
+      className={`flex-1 min-w-[300px] rounded-lg p-4 transition-colors ${isOver ? 'bg-gray-200' : 'bg-gray-100'}`}
+    >
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold text-gray-700">{COLUMN_EMOJIS[id] ?? ''} {name}</h2>
+        <p className="text-xs text-gray-500 mt-0.5">{summaryText}</p>
+      </div>
+      <div className="space-y-3 min-h-[200px]">
+        {cards.map((card) => (
+          <Card
+            key={card.id}
+            id={card.id}
+            summary={card.summary}
+            description={card.description}
+            column={card.column}
+            priority={card.priority}
+            due={card.due}
+            dueHasTime={card.dueHasTime}
+            completed={card.completed}
+            isRecurring={card.isRecurring}
+            isRecurringChild={card.isRecurringChild}
+            onClick={() => onCardClick(card)}
+          />
+        ))}
       </div>
     </div>
   );

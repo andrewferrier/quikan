@@ -1,14 +1,68 @@
 import ICAL from 'ical.js';
-import fs from 'fs/promises';
-import path from 'path';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Card } from '../types.js';
 
-const DATA_DIR = process.env.DATA_DIR || './data';
+/** Returns the data directory, reading QUIKAN_DATA from the environment at call time. */
+function getDataDir(): string {
+  return process.env.QUIKAN_DATA ?? 'data';
+}
+
+/** Maps iCalendar STATUS values to Quikan column IDs. */
+const STATUS_TO_COLUMN: Record<string, string> = {
+  COMPLETED: 'done',
+  'IN-PROCESS': 'in-progress',
+  'NEEDS-ACTION': 'todo',
+};
+
+/** Maps Quikan column IDs to iCalendar STATUS values. */
+const COLUMN_TO_STATUS: Record<string, string> = {
+  done: 'COMPLETED',
+  'in-progress': 'IN-PROCESS',
+};
+
+/** RRULE parts that fall outside Quikan's supported subset. */
+const UNSUPPORTED_RRULE_PARTS = new Set(['BYYEARDAY', 'BYWEEKNO', 'BYHOUR', 'BYMINUTE', 'BYSECOND']);
+const UNSUPPORTED_RRULE_FREQS = new Set(['SECONDLY', 'MINUTELY', 'HOURLY']);
+
+function isRruleSupported(recur: typeof ICAL.Recur.prototype): boolean {
+  if (UNSUPPORTED_RRULE_FREQS.has(recur.freq?.toUpperCase())) return false;
+  for (const part of Object.keys(recur.parts ?? {})) {
+    if (UNSUPPORTED_RRULE_PARTS.has(part)) return false;
+  }
+  return true;
+}
 
 /**
- * Parse a VTODO from iCalendar format to Card object
+ * Convert an ICAL.Time to a JS Date, preserving UTC midnight for date-only values.
+ * ical.js .toJSDate() uses local midnight for date-only values, which would be wrong
+ * in non-UTC environments — so we use Date.UTC() explicitly for dates.
  */
+function icalTimeToDate(icalTime: typeof ICAL.Time.prototype): Date {
+  if (icalTime.isDate) {
+    return new Date(Date.UTC(icalTime.year, icalTime.month - 1, icalTime.day));
+  }
+  return icalTime.toJSDate();
+}
+
+/** Format a UTC Date as a date-only iCal date string YYYY-MM-DD. */
+function formatDateUTCDash(d: Date): string {
+  return [
+    d.getUTCFullYear(),
+    String(d.getUTCMonth() + 1).padStart(2, '0'),
+    String(d.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+/** Build the ICAL.Time for a DUE/DTSTART/RECURRENCE-ID property. */
+function dateToIcalTime(d: Date, hasTime: boolean | undefined): typeof ICAL.Time.prototype {
+  if (!hasTime) {
+    return ICAL.Time.fromDateString(formatDateUTCDash(d));
+  }
+  return ICAL.Time.fromJSDate(d, true);
+}
+
 export function parseVTODO(icsContent: string, filename: string): Card {
   const jcalData = ICAL.parse(icsContent);
   const comp = new ICAL.Component(jcalData);
@@ -18,47 +72,132 @@ export function parseVTODO(icsContent: string, filename: string): Card {
     throw new Error('No VTODO component found');
   }
 
+  const id = filename.replace('.ics', '');
+
+  // UID property (may differ from filename for child overrides)
+  const uidProp = vtodo.getFirstProperty('uid');
+  const uid = uidProp ? ((uidProp.getFirstValue() as string) || id) : id;
+
   const summary = (vtodo.getFirstPropertyValue('summary') as string) || '';
+  const description = (vtodo.getFirstPropertyValue('description') as string) || undefined;
   const created = vtodo.getFirstPropertyValue('created') || new Date();
   const modified = vtodo.getFirstPropertyValue('last-modified') || new Date();
 
-  // Get custom properties for column and sequence
-  let column = 'todo';
-  let sequence = 0;
+  // Column from STATUS (authoritative), falling back to X-QUIKAN-COLUMN then 'todo'
+  const statusProp = vtodo.getFirstProperty('status');
+  const statusVal = statusProp
+    ? (statusProp.getFirstValue() as string | null)?.toUpperCase() ?? null
+    : null;
+  const isCompleted = statusVal === 'COMPLETED';
 
-  // Look for X-QUIKAN-COLUMN property
-  const columnProp = vtodo.getFirstProperty('x-quikan-column');
-  if (columnProp) {
-    const columnValue = columnProp.getFirstValue();
-    if (typeof columnValue === 'string') {
-      column = columnValue;
+  let column: string;
+  if (statusVal && STATUS_TO_COLUMN[statusVal] !== undefined) {
+    column = STATUS_TO_COLUMN[statusVal];
+  } else {
+    column = 'todo';
+    const columnProp = vtodo.getFirstProperty('x-quikan-column');
+    if (columnProp) {
+      const val = columnProp.getFirstValue();
+      if (typeof val === 'string') column = val;
     }
   }
 
-  // Look for X-QUIKAN-SEQUENCE property
-  const seqProp = vtodo.getFirstProperty('x-quikan-sequence');
-  if (seqProp) {
-    const seqValue = seqProp.getFirstValue();
-    if (typeof seqValue === 'string') {
-      sequence = parseInt(seqValue, 10) || 0;
+  // DUE
+  let due: Date | undefined;
+  let dueHasTime: boolean | undefined;
+  const dueProp = vtodo.getFirstProperty('due');
+  if (dueProp) {
+    const dueTime = dueProp.getFirstValue() as typeof ICAL.Time.prototype;
+    dueHasTime = !dueTime.isDate;
+    due = icalTimeToDate(dueTime);
+  }
+
+  // DTSTART (recurrence series anchor)
+  let dtstart: Date | undefined;
+  const dtstartProp = vtodo.getFirstProperty('dtstart');
+  if (dtstartProp) {
+    dtstart = icalTimeToDate(dtstartProp.getFirstValue() as typeof ICAL.Time.prototype);
+  }
+
+  // PRIORITY
+  let priority: number | undefined;
+  const priorityProp = vtodo.getFirstProperty('priority');
+  if (priorityProp) {
+    const val = priorityProp.getFirstValue();
+    const num = typeof val === 'number' ? val : parseInt(String(val), 10);
+    if (!isNaN(num) && num >= 1 && num <= 9) priority = num;
+  }
+
+  // COMPLETED
+  let completed: Date | undefined;
+  if (isCompleted) {
+    const completedProp = vtodo.getFirstProperty('completed');
+    if (completedProp) {
+      const ct = completedProp.getFirstValue() as typeof ICAL.Time.prototype;
+      completed = ct.toJSDate ? ct.toJSDate() : new Date(ct.toString());
+    } else {
+      completed = modified instanceof Date ? modified : new Date(modified.toString());
     }
   }
 
-  // Extract ID from filename (remove .ics extension)
-  const id = filename.replace('.ics', '');
+  // RRULE
+  let rrule: string | undefined;
+  let rruleSupported: boolean | undefined;
+  const rruleProp = vtodo.getFirstProperty('rrule');
+  if (rruleProp) {
+    const recur = rruleProp.getFirstValue() as typeof ICAL.Recur.prototype;
+    rrule = recur.toString();
+    rruleSupported = isRruleSupported(recur);
+  }
+
+  // RECURRENCE-ID
+  let recurrenceId: Date | undefined;
+  const recurrenceIdProp = vtodo.getFirstProperty('recurrence-id');
+  if (recurrenceIdProp) {
+    recurrenceId = icalTimeToDate(recurrenceIdProp.getFirstValue() as typeof ICAL.Time.prototype);
+  }
+
+  // RDATE
+  let rdates: Date[] | undefined;
+  const rdateProps = vtodo.getAllProperties('rdate');
+  if (rdateProps.length > 0) {
+    rdates = rdateProps.map((p) => icalTimeToDate(p.getFirstValue() as typeof ICAL.Time.prototype));
+  }
+
+  // EXDATE
+  let exdates: Date[] | undefined;
+  const exdateProps = vtodo.getAllProperties('exdate');
+  if (exdateProps.length > 0) {
+    exdates = exdateProps.map((p) => icalTimeToDate(p.getFirstValue() as typeof ICAL.Time.prototype));
+  }
 
   return {
     id,
+    uid,
     summary,
+    description,
     column,
-    sequence,
+    priority,
     created: created instanceof Date ? created : new Date(created.toString()),
     modified: modified instanceof Date ? modified : new Date(modified.toString()),
+    completed,
+    due,
+    dueHasTime,
+    dtstart,
+    rrule,
+    rruleSupported,
+    rdates,
+    exdates,
+    recurrenceId,
+    isRecurringChild: !!recurrenceId,
   };
 }
 
 /**
- * Convert a Card object to VTODO iCalendar format
+ * Convert a Card object to VTODO iCalendar format.
+ *
+ * All columns write both STATUS and X-QUIKAN-COLUMN. STATUS is authoritative
+ * on read; X-QUIKAN-COLUMN is a human-readable hint and fallback for external tools.
  */
 export function cardToVTODO(card: Card): string {
   const comp = new ICAL.Component(['vcalendar', [], []]);
@@ -66,33 +205,122 @@ export function cardToVTODO(card: Card): string {
   comp.updatePropertyWithValue('prodid', '-//Quikan//Kanban Board//EN');
 
   const vtodo = new ICAL.Component('vtodo');
-  vtodo.updatePropertyWithValue('uid', card.id);
+  vtodo.updatePropertyWithValue('uid', card.uid ?? card.id);
   vtodo.updatePropertyWithValue('summary', card.summary);
+  if (card.description) {
+    vtodo.updatePropertyWithValue('description', card.description);
+  }
   vtodo.updatePropertyWithValue('created', ICAL.Time.fromJSDate(card.created, false));
   vtodo.updatePropertyWithValue('last-modified', ICAL.Time.fromJSDate(card.modified, false));
   vtodo.updatePropertyWithValue('dtstamp', ICAL.Time.fromJSDate(new Date(), false));
 
-  // Add custom properties
+  const status = COLUMN_TO_STATUS[card.column] ?? 'NEEDS-ACTION';
+  vtodo.updatePropertyWithValue('status', status);
   vtodo.updatePropertyWithValue('x-quikan-column', card.column);
-  vtodo.updatePropertyWithValue('x-quikan-sequence', card.sequence.toString());
+
+  // DTSTART — required by RFC 5545 when RRULE is present; also written for child overrides
+  if (card.rrule || card.isRecurringChild) {
+    const dtstartDate = card.dtstart ?? card.due;
+    if (dtstartDate) {
+      vtodo.updatePropertyWithValue('dtstart', dateToIcalTime(dtstartDate, card.dueHasTime));
+    }
+  }
+
+  if (card.due) {
+    vtodo.updatePropertyWithValue('due', dateToIcalTime(card.due, card.dueHasTime));
+  }
+
+  if (card.priority !== undefined && card.priority >= 1 && card.priority <= 9) {
+    vtodo.updatePropertyWithValue('priority', card.priority);
+  }
+
+  if (card.column === 'done' && card.completed) {
+    vtodo.updatePropertyWithValue('completed', ICAL.Time.fromJSDate(card.completed, false));
+  }
+
+  // Recurrence rule
+  if (card.rrule) {
+    vtodo.updatePropertyWithValue('rrule', ICAL.Recur.fromString(card.rrule));
+  }
+
+  // RECURRENCE-ID (child override cards only)
+  if (card.recurrenceId) {
+    vtodo.updatePropertyWithValue('recurrence-id', dateToIcalTime(card.recurrenceId, card.dueHasTime));
+  }
+
+  // RDATE list
+  if (card.rdates) {
+    for (const rdate of card.rdates) {
+      vtodo.addPropertyWithValue('rdate', ICAL.Time.fromJSDate(rdate, true));
+    }
+  }
+
+  // EXDATE list
+  if (card.exdates) {
+    for (const exdate of card.exdates) {
+      vtodo.addPropertyWithValue('exdate', ICAL.Time.fromJSDate(exdate, true));
+    }
+  }
 
   comp.addSubcomponent(vtodo);
-
   return comp.toString();
 }
 
 /**
- * Read all cards from the data directory
+ * Find the next occurrence in a master card's recurrence set after master.due
+ * that has not already been overridden by an existing child.
+ * Returns null if the series is exhausted.
+ *
+ * Uses ical.js RRULE iteration. Safety-limited to 1000 iterations.
  */
+export function computeNextOccurrence(master: Card, existingChildren: Card[]): Date | null {
+  if (!master.rrule) return null;
+
+  const anchor = master.dtstart ?? master.due;
+  if (!anchor) return null;
+
+  let recur: typeof ICAL.Recur.prototype;
+  try {
+    recur = ICAL.Recur.fromString(master.rrule);
+  } catch {
+    return null;
+  }
+
+  const icalAnchor = dateToIcalTime(anchor, master.dueHasTime);
+  const iter = recur.iterator(icalAnchor);
+
+  // Dates already covered by child overrides (ms timestamps for fast lookup)
+  const overriddenMs = new Set(
+    existingChildren
+      .filter((c) => c.recurrenceId)
+      .map((c) => c.recurrenceId!.getTime())
+  );
+
+  const currentDueMs = master.due?.getTime() ?? 0;
+  const MAX_ITER = 1000;
+
+  for (let i = 0; i < MAX_ITER; i++) {
+    const next = iter.next();
+    if (!next) break;
+    const nextDate = icalTimeToDate(next);
+    const nextMs = nextDate.getTime();
+    if (nextMs > currentDueMs && !overriddenMs.has(nextMs)) {
+      return nextDate;
+    }
+  }
+
+  return null;
+}
+
 export async function readAllCards(): Promise<Card[]> {
   try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const files = await fs.readdir(DATA_DIR);
+    await fs.mkdir(getDataDir(), { recursive: true });
+    const files = await fs.readdir(getDataDir());
     const icsFiles = files.filter((f) => f.endsWith('.ics'));
 
     const cards = await Promise.all(
       icsFiles.map(async (file) => {
-        const content = await fs.readFile(path.join(DATA_DIR, file), 'utf-8');
+        const content = await fs.readFile(path.join(getDataDir(), file), 'utf-8');
         return parseVTODO(content, file);
       })
     );
@@ -104,66 +332,78 @@ export async function readAllCards(): Promise<Card[]> {
   }
 }
 
-/**
- * Read a single card by ID
- */
 export async function readCard(id: string): Promise<Card | null> {
   try {
-    const content = await fs.readFile(path.join(DATA_DIR, `${id}.ics`), 'utf-8');
+    const content = await fs.readFile(path.join(getDataDir(), `${id}.ics`), 'utf-8');
     return parseVTODO(content, `${id}.ics`);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
-/**
- * Write a card to the data directory
- */
+/** Return all child override cards that share the given UID. */
+export async function readChildrenOf(uid: string): Promise<Card[]> {
+  const all = await readAllCards();
+  return all.filter((c) => c.uid === uid && c.isRecurringChild);
+}
+
+/** Return the master card for the given UID (the card without a RECURRENCE-ID). */
+export async function readMasterOf(uid: string): Promise<Card | null> {
+  const all = await readAllCards();
+  return all.find((c) => c.uid === uid && !c.isRecurringChild) ?? null;
+}
+
 export async function writeCard(card: Card): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(getDataDir(), { recursive: true });
   const icsContent = cardToVTODO(card);
-  await fs.writeFile(path.join(DATA_DIR, `${card.id}.ics`), icsContent, 'utf-8');
+  await fs.writeFile(path.join(getDataDir(), `${card.id}.ics`), icsContent, 'utf-8');
 }
 
-/**
- * Delete a card from the data directory
- */
 export async function deleteCard(id: string): Promise<void> {
-  await fs.unlink(path.join(DATA_DIR, `${id}.ics`));
+  await fs.unlink(path.join(getDataDir(), `${id}.ics`));
 }
 
-/**
- * Create a new card
- */
-export async function createCard(summary: string, column: string): Promise<Card> {
-  const cards = await readAllCards();
-  const columnCards = cards.filter((c) => c.column === column);
-  const maxSequence = columnCards.reduce((max, c) => Math.max(max, c.sequence), -1);
-
+export async function createCard(
+  summary: string,
+  column: string,
+  due?: Date,
+  dueHasTime?: boolean,
+  priority?: number,
+  description?: string,
+  rrule?: string,
+  rdates?: Date[],
+  exdates?: Date[]
+): Promise<Card> {
+  const id = uuidv4();
   const card: Card = {
-    id: uuidv4(),
+    id,
+    uid: id,
     summary,
+    description,
     column,
-    sequence: maxSequence + 1,
+    priority,
     created: new Date(),
     modified: new Date(),
+    due,
+    dueHasTime,
+    // When recurring: DTSTART = first DUE (series anchor, never changes)
+    dtstart: rrule ? due : undefined,
+    rrule,
+    rruleSupported: rrule ? true : undefined,
+    rdates,
+    exdates,
   };
 
   await writeCard(card);
   return card;
 }
 
-/**
- * Update an existing card
- */
 export async function updateCard(
   id: string,
   updates: Partial<Omit<Card, 'id' | 'created'>>
 ): Promise<Card | null> {
   const card = await readCard(id);
-  if (!card) {
-    return null;
-  }
+  if (!card) return null;
 
   const updatedCard: Card = {
     ...card,
@@ -171,63 +411,80 @@ export async function updateCard(
     modified: new Date(),
   };
 
+  // Auto-manage the COMPLETED timestamp whenever the column changes.
+  if ('column' in updates) {
+    if (updatedCard.column === 'done') {
+      if (!updatedCard.completed) {
+        updatedCard.completed = updatedCard.modified;
+      }
+    } else {
+      updatedCard.completed = undefined;
+    }
+  }
+
   await writeCard(updatedCard);
   return updatedCard;
 }
 
 /**
- * Move a card to a different column
+ * Create a child override card for a specific instance of a recurring master.
+ * The child inherits the master's current DUE as its own DUE and RECURRENCE-ID.
  */
-export async function moveCard(
-  id: string,
-  targetColumn: string,
-  targetSequence: number
-): Promise<Card | null> {
-  const cards = await readAllCards();
-  const card = cards.find((c) => c.id === id);
+export async function createChildOverride(master: Card, targetColumn: string): Promise<Card> {
+  const now = new Date();
+  const instanceDate = master.due ?? now;
+  const childId = uuidv4();
 
-  if (!card) {
-    return null;
+  const child: Card = {
+    id: childId,
+    uid: master.uid,
+    summary: master.summary,
+    description: master.description,
+    column: targetColumn,
+    priority: master.priority,
+    created: master.created,
+    modified: now,
+    due: instanceDate,
+    dueHasTime: master.dueHasTime,
+    dtstart: instanceDate,
+    recurrenceId: instanceDate,
+    isRecurringChild: true,
+    completed: targetColumn === 'done' ? now : undefined,
+  };
+
+  await writeCard(child);
+  return child;
+}
+
+/**
+ * Move a card to a different column.
+ *
+ * For a recurring master with a supported RRULE: creates a child override for
+ * the current instance, then advances the master's DUE to the next occurrence.
+ * Returns the child card (which appears in the target column).
+ *
+ * For child cards and non-recurring cards: standard column update.
+ */
+export async function moveCard(id: string, targetColumn: string): Promise<Card | null> {
+  const card = await readCard(id);
+  if (!card) return null;
+
+  if (card.rrule && card.rruleSupported !== false && !card.isRecurringChild) {
+    const child = await createChildOverride(card, targetColumn);
+
+    const existingChildren = await readChildrenOf(card.uid);
+    const nextDue = computeNextOccurrence(card, existingChildren);
+
+    if (nextDue !== null) {
+      // Advance master's DUE to the next occurrence; keep it in todo
+      await updateCard(id, { due: nextDue, column: 'todo' });
+    } else {
+      // Series exhausted — complete the master too
+      await updateCard(id, { column: 'done' });
+    }
+
+    return child;
   }
 
-  const oldColumn = card.column;
-  const oldSequence = card.sequence;
-
-  // Update sequences in the old column
-  if (oldColumn === targetColumn) {
-    // Moving within the same column
-    for (const c of cards) {
-      if (c.column === oldColumn && c.id !== id) {
-        if (oldSequence < targetSequence) {
-          // Moving down
-          if (c.sequence > oldSequence && c.sequence <= targetSequence) {
-            await updateCard(c.id, { sequence: c.sequence - 1 });
-          }
-        } else {
-          // Moving up
-          if (c.sequence >= targetSequence && c.sequence < oldSequence) {
-            await updateCard(c.id, { sequence: c.sequence + 1 });
-          }
-        }
-      }
-    }
-  } else {
-    // Moving to a different column
-    // Update sequences in old column (shift down)
-    for (const c of cards) {
-      if (c.column === oldColumn && c.sequence > oldSequence) {
-        await updateCard(c.id, { sequence: c.sequence - 1 });
-      }
-    }
-
-    // Update sequences in new column (shift up)
-    for (const c of cards) {
-      if (c.column === targetColumn && c.sequence >= targetSequence) {
-        await updateCard(c.id, { sequence: c.sequence + 1 });
-      }
-    }
-  }
-
-  // Update the moved card
-  return await updateCard(id, { column: targetColumn, sequence: targetSequence });
+  return await updateCard(id, { column: targetColumn });
 }

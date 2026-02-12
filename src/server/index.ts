@@ -17,7 +17,6 @@ const PORT = process.env.PORT || 4000;
 async function startServer() {
   const app = express();
 
-  // Create Apollo Server
   const server = new ApolloServer({
     typeDefs,
     resolvers,
@@ -25,28 +24,23 @@ async function startServer() {
 
   await server.start();
 
-  // Rate limiting
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per windowMs
+    max: 100,
     standardHeaders: true,
     legacyHeaders: false,
   });
 
-  // Middleware
   app.use(cors());
   app.use(bodyParser.json());
   app.use(limiter);
 
-  // GraphQL endpoint
   app.use('/graphql', expressMiddleware(server));
 
-  // Serve static files from the client build only in production
   if (process.env.NODE_ENV === 'production') {
     const clientPath = path.join(__dirname, '../client');
     app.use(express.static(clientPath));
 
-    // Serve index.html for all other routes (SPA)
     app.get('*', (_req, res) => {
       res.sendFile(path.join(clientPath, 'index.html'));
     });
