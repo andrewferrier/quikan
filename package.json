@@ -12,8 +12,8 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "vite build",
     "start": "node dist/server/index.js",
-    "test": "TZ=UTC jest",
-    "test:watch": "TZ=UTC jest --watch",
+    "test": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""

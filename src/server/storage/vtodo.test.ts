@@ -5,14 +5,6 @@ import * as nodePath from 'path';
 import { parseVTODO, cardToVTODO, createCard, updateCard, moveCard, readCard, deleteCard, writeCard } from '../storage/vtodo';
 import { Card } from '../types';
 
-jest.mock('ical.js', () => {
-  const actualICAL = jest.requireActual('ical.js');
-  return {
-    __esModule: true,
-    default: actualICAL.default || actualICAL,
-  };
-});
-
 function makeICS(
   uid: string,
   extra: string[] = [],
