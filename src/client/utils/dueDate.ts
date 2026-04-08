@@ -17,13 +17,10 @@ export interface DueDisplay {
  * The `now` parameter exists for testability; defaults to the current time.
  */
 export function formatDue(dueStr: string, dueHasTime: boolean, now = new Date()): DueDisplay {
-  const dueDate = dueHasTime
-    ? new Date(dueStr)
-    : new Date(dueStr + 'T00:00:00'); // local midnight for date-only
+  const dueDate = dueHasTime ? new Date(dueStr) : new Date(dueStr + 'T00:00:00'); // local midnight for date-only
 
   // If time is midnight (00:00 local), present as date-only
-  const effectiveHasTime =
-    dueHasTime && (dueDate.getHours() !== 0 || dueDate.getMinutes() !== 0);
+  const effectiveHasTime = dueHasTime && (dueDate.getHours() !== 0 || dueDate.getMinutes() !== 0);
 
   return {
     text: buildText(dueDate, effectiveHasTime, now),

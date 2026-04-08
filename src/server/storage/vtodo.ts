@@ -23,7 +23,13 @@ const COLUMN_TO_STATUS: Record<string, string> = {
 };
 
 /** RRULE parts that fall outside Quikan's supported subset. */
-const UNSUPPORTED_RRULE_PARTS = new Set(['BYYEARDAY', 'BYWEEKNO', 'BYHOUR', 'BYMINUTE', 'BYSECOND']);
+const UNSUPPORTED_RRULE_PARTS = new Set([
+  'BYYEARDAY',
+  'BYWEEKNO',
+  'BYHOUR',
+  'BYMINUTE',
+  'BYSECOND',
+]);
 const UNSUPPORTED_RRULE_FREQS = new Set(['SECONDLY', 'MINUTELY', 'HOURLY']);
 
 function isRruleSupported(recur: typeof ICAL.Recur.prototype): boolean {
@@ -76,7 +82,7 @@ export function parseVTODO(icsContent: string, filename: string): Card {
 
   // UID property (may differ from filename for child overrides)
   const uidProp = vtodo.getFirstProperty('uid');
-  const uid = uidProp ? ((uidProp.getFirstValue() as string) || id) : id;
+  const uid = uidProp ? (uidProp.getFirstValue() as string) || id : id;
 
   const summary = (vtodo.getFirstPropertyValue('summary') as string) || '';
   const description = (vtodo.getFirstPropertyValue('description') as string) || undefined;
@@ -86,7 +92,7 @@ export function parseVTODO(icsContent: string, filename: string): Card {
   // Column from STATUS (authoritative), falling back to X-QUIKAN-COLUMN then 'todo'
   const statusProp = vtodo.getFirstProperty('status');
   const statusVal = statusProp
-    ? (statusProp.getFirstValue() as string | null)?.toUpperCase() ?? null
+    ? ((statusProp.getFirstValue() as string | null)?.toUpperCase() ?? null)
     : null;
   const isCompleted = statusVal === 'COMPLETED';
 
@@ -168,7 +174,9 @@ export function parseVTODO(icsContent: string, filename: string): Card {
   let exdates: Date[] | undefined;
   const exdateProps = vtodo.getAllProperties('exdate');
   if (exdateProps.length > 0) {
-    exdates = exdateProps.map((p) => icalTimeToDate(p.getFirstValue() as typeof ICAL.Time.prototype));
+    exdates = exdateProps.map((p) =>
+      icalTimeToDate(p.getFirstValue() as typeof ICAL.Time.prototype)
+    );
   }
 
   return {
@@ -245,7 +253,10 @@ export function cardToVTODO(card: Card): string {
 
   // RECURRENCE-ID (child override cards only)
   if (card.recurrenceId) {
-    vtodo.updatePropertyWithValue('recurrence-id', dateToIcalTime(card.recurrenceId, card.dueHasTime));
+    vtodo.updatePropertyWithValue(
+      'recurrence-id',
+      dateToIcalTime(card.recurrenceId, card.dueHasTime)
+    );
   }
 
   // RDATE list
@@ -291,9 +302,7 @@ export function computeNextOccurrence(master: Card, existingChildren: Card[]): D
 
   // Dates already covered by child overrides (ms timestamps for fast lookup)
   const overriddenMs = new Set(
-    existingChildren
-      .filter((c) => c.recurrenceId)
-      .map((c) => c.recurrenceId!.getTime())
+    existingChildren.filter((c) => c.recurrenceId).map((c) => c.recurrenceId!.getTime())
   );
 
   const currentDueMs = master.due?.getTime() ?? 0;

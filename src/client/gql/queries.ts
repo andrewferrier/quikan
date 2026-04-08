@@ -31,8 +31,26 @@ export const GET_COLUMNS = gql`
 `;
 
 export const CREATE_CARD = gql`
-  mutation CreateCard($summary: String!, $column: String!, $due: String, $priority: Int, $description: String, $rrule: String, $rdates: [String!], $exdates: [String!]) {
-    createCard(summary: $summary, column: $column, due: $due, priority: $priority, description: $description, rrule: $rrule, rdates: $rdates, exdates: $exdates) {
+  mutation CreateCard(
+    $summary: String!
+    $column: String!
+    $due: String
+    $priority: Int
+    $description: String
+    $rrule: String
+    $rdates: [String!]
+    $exdates: [String!]
+  ) {
+    createCard(
+      summary: $summary
+      column: $column
+      due: $due
+      priority: $priority
+      description: $description
+      rrule: $rrule
+      rdates: $rdates
+      exdates: $exdates
+    ) {
       id
       summary
       description
@@ -62,8 +80,28 @@ export const MOVE_CARD = gql`
 `;
 
 export const UPDATE_CARD = gql`
-  mutation UpdateCard($id: ID!, $summary: String, $column: String, $due: String, $priority: Int, $description: String, $rrule: String, $rdates: [String!], $exdates: [String!]) {
-    updateCard(id: $id, summary: $summary, column: $column, due: $due, priority: $priority, description: $description, rrule: $rrule, rdates: $rdates, exdates: $exdates) {
+  mutation UpdateCard(
+    $id: ID!
+    $summary: String
+    $column: String
+    $due: String
+    $priority: Int
+    $description: String
+    $rrule: String
+    $rdates: [String!]
+    $exdates: [String!]
+  ) {
+    updateCard(
+      id: $id
+      summary: $summary
+      column: $column
+      due: $due
+      priority: $priority
+      description: $description
+      rrule: $rrule
+      rdates: $rdates
+      exdates: $exdates
+    ) {
       id
       summary
       description

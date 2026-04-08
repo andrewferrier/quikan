@@ -2,13 +2,25 @@ import { mkdtemp, rm, readFile } from 'fs/promises';
 import { readdirSync } from 'fs';
 import { tmpdir } from 'os';
 import * as nodePath from 'path';
-import { parseVTODO, cardToVTODO, createCard, updateCard, moveCard, readCard, deleteCard, writeCard } from '../storage/vtodo';
+import {
+  parseVTODO,
+  cardToVTODO,
+  createCard,
+  updateCard,
+  moveCard,
+  readCard,
+  deleteCard,
+  writeCard,
+} from '../storage/vtodo';
 import { Card } from '../types';
 
 function makeICS(
   uid: string,
   extra: string[] = [],
-  { summary = 'Test Task', lastModified = '20260212T100000Z' }: { summary?: string; lastModified?: string } = {}
+  {
+    summary = 'Test Task',
+    lastModified = '20260212T100000Z',
+  }: { summary?: string; lastModified?: string } = {}
 ): string {
   return [
     'BEGIN:VCALENDAR',
@@ -29,7 +41,10 @@ function makeICS(
 describe('VTODO Storage', () => {
   describe('parseVTODO', () => {
     it('parses id, summary, and column', () => {
-      const card = parseVTODO(makeICS('test-card-1', ['X-QUIKAN-COLUMN:todo'], { summary: 'Test Card' }), 'test-card-1.ics');
+      const card = parseVTODO(
+        makeICS('test-card-1', ['X-QUIKAN-COLUMN:todo'], { summary: 'Test Card' }),
+        'test-card-1.ics'
+      );
       expect(card.id).toBe('test-card-1');
       expect(card.summary).toBe('Test Card');
       expect(card.column).toBe('todo');
@@ -41,7 +56,10 @@ describe('VTODO Storage', () => {
     });
 
     it('maps STATUS:COMPLETED to the "done" column', () => {
-      const card = parseVTODO(makeICS('test-completed', ['STATUS:COMPLETED']), 'test-completed.ics');
+      const card = parseVTODO(
+        makeICS('test-completed', ['STATUS:COMPLETED']),
+        'test-completed.ics'
+      );
       expect(card.column).toBe('done');
     });
 
@@ -54,7 +72,10 @@ describe('VTODO Storage', () => {
     });
 
     it('maps STATUS:IN-PROCESS to "in-progress"', () => {
-      const card = parseVTODO(makeICS('test-in-process', ['STATUS:IN-PROCESS']), 'test-in-process.ics');
+      const card = parseVTODO(
+        makeICS('test-in-process', ['STATUS:IN-PROCESS']),
+        'test-in-process.ics'
+      );
       expect(card.column).toBe('in-progress');
     });
 
@@ -67,17 +88,26 @@ describe('VTODO Storage', () => {
     });
 
     it('falls back to X-QUIKAN-COLUMN when STATUS is absent', () => {
-      const card = parseVTODO(makeICS('test-fallback', ['X-QUIKAN-COLUMN:in-progress']), 'test-fallback.ics');
+      const card = parseVTODO(
+        makeICS('test-fallback', ['X-QUIKAN-COLUMN:in-progress']),
+        'test-fallback.ics'
+      );
       expect(card.column).toBe('in-progress');
     });
 
     it('defaults column to "todo" for STATUS:NEEDS-ACTION without X-QUIKAN-COLUMN', () => {
-      const card = parseVTODO(makeICS('test-needs-action', ['STATUS:NEEDS-ACTION']), 'test-needs-action.ics');
+      const card = parseVTODO(
+        makeICS('test-needs-action', ['STATUS:NEEDS-ACTION']),
+        'test-needs-action.ics'
+      );
       expect(card.column).toBe('todo');
     });
 
     it('parses a date-only DUE property', () => {
-      const card = parseVTODO(makeICS('test-due-date', ['DUE;VALUE=DATE:20260401']), 'test-due-date.ics');
+      const card = parseVTODO(
+        makeICS('test-due-date', ['DUE;VALUE=DATE:20260401']),
+        'test-due-date.ics'
+      );
       expect(card.due).toBeInstanceOf(Date);
       expect(card.dueHasTime).toBe(false);
       // Stored as UTC midnight
@@ -85,7 +115,10 @@ describe('VTODO Storage', () => {
     });
 
     it('parses a datetime DUE property', () => {
-      const card = parseVTODO(makeICS('test-due-datetime', ['DUE:20260401T150000Z']), 'test-due-datetime.ics');
+      const card = parseVTODO(
+        makeICS('test-due-datetime', ['DUE:20260401T150000Z']),
+        'test-due-datetime.ics'
+      );
       expect(card.due).toBeInstanceOf(Date);
       expect(card.dueHasTime).toBe(true);
       expect(card.due!.toISOString()).toBe('2026-04-01T15:00:00.000Z');
@@ -303,7 +336,10 @@ describe('VTODO Storage', () => {
 
   describe('isRecurring', () => {
     it('sets isRecurringChild to false and rrule to the rule string when RRULE is present', () => {
-      const card = parseVTODO(makeICS('test-recurring', ['RRULE:FREQ=WEEKLY;BYDAY=MO']), 'test-recurring.ics');
+      const card = parseVTODO(
+        makeICS('test-recurring', ['RRULE:FREQ=WEEKLY;BYDAY=MO']),
+        'test-recurring.ics'
+      );
       expect(card.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');
       expect(card.rruleSupported).toBe(true);
       expect(card.isRecurringChild).toBe(false);
@@ -319,7 +355,9 @@ describe('VTODO Storage', () => {
   describe('completed date parsing', () => {
     it('parses the COMPLETED datetime for a done card', () => {
       const card = parseVTODO(
-        makeICS('test-completed-date', ['STATUS:COMPLETED', 'COMPLETED:20260301T150000Z'], { lastModified: '20260301T100000Z' }),
+        makeICS('test-completed-date', ['STATUS:COMPLETED', 'COMPLETED:20260301T150000Z'], {
+          lastModified: '20260301T100000Z',
+        }),
         'test-completed-date.ics'
       );
       expect(card.column).toBe('done');
@@ -329,7 +367,9 @@ describe('VTODO Storage', () => {
 
     it('falls back to LAST-MODIFIED when COMPLETED is absent', () => {
       const card = parseVTODO(
-        makeICS('test-completed-fallback', ['STATUS:COMPLETED'], { lastModified: '20260301T100000Z' }),
+        makeICS('test-completed-fallback', ['STATUS:COMPLETED'], {
+          lastModified: '20260301T100000Z',
+        }),
         'test-completed-fallback.ics'
       );
       expect(card.completed).toBeInstanceOf(Date);
@@ -337,7 +377,10 @@ describe('VTODO Storage', () => {
     });
 
     it('leaves completed undefined for non-done cards', () => {
-      const card = parseVTODO(makeICS('test-not-completed', ['X-QUIKAN-COLUMN:todo']), 'test-not-completed.ics');
+      const card = parseVTODO(
+        makeICS('test-not-completed', ['X-QUIKAN-COLUMN:todo']),
+        'test-not-completed.ics'
+      );
       expect(card.completed).toBeUndefined();
     });
   });
@@ -804,10 +847,7 @@ describe('RDATE and EXDATE parsing and writing', () => {
   });
 
   it('parses EXDATE properties', () => {
-    const card = parseVTODO(
-      makeICS('test-exdate', ['EXDATE:20260415T100000Z']),
-      'test-exdate.ics'
-    );
+    const card = parseVTODO(makeICS('test-exdate', ['EXDATE:20260415T100000Z']), 'test-exdate.ics');
     expect(card.exdates).toHaveLength(1);
     expect(card.exdates![0].toISOString()).toBe('2026-04-15T10:00:00.000Z');
   });
@@ -909,8 +949,18 @@ describe('computeNextOccurrence', () => {
 
   it('advances through multiple already-covered occurrences', () => {
     const children: Card[] = [
-      { ...masterBase, id: 'c1', recurrenceId: new Date('2026-01-12T00:00:00.000Z'), isRecurringChild: true },
-      { ...masterBase, id: 'c2', recurrenceId: new Date('2026-01-19T00:00:00.000Z'), isRecurringChild: true },
+      {
+        ...masterBase,
+        id: 'c1',
+        recurrenceId: new Date('2026-01-12T00:00:00.000Z'),
+        isRecurringChild: true,
+      },
+      {
+        ...masterBase,
+        id: 'c2',
+        recurrenceId: new Date('2026-01-19T00:00:00.000Z'),
+        isRecurringChild: true,
+      },
     ];
     const next = computeNextOccurrence(masterBase, children);
     expect(next!.toISOString()).toBe('2026-01-26T00:00:00.000Z');
@@ -936,7 +986,15 @@ describe('createChildOverride', () => {
   });
 
   it('creates a child with a new id, master uid, and recurrenceId = master.due', async () => {
-    const master = await createCard('Weekly task', 'todo', new Date('2026-04-07T00:00:00.000Z'), false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const master = await createCard(
+      'Weekly task',
+      'todo',
+      new Date('2026-04-07T00:00:00.000Z'),
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
     const child = await createChildOverride(master, 'done');
 
     expect(child.id).not.toBe(master.id);
@@ -949,7 +1007,15 @@ describe('createChildOverride', () => {
   });
 
   it('child created for in-progress target is not completed', async () => {
-    const master = await createCard('Weekly task', 'todo', new Date('2026-04-07T00:00:00.000Z'), false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const master = await createCard(
+      'Weekly task',
+      'todo',
+      new Date('2026-04-07T00:00:00.000Z'),
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
     const child = await createChildOverride(master, 'in-progress');
 
     expect(child.column).toBe('in-progress');
@@ -957,7 +1023,15 @@ describe('createChildOverride', () => {
   });
 
   it('child is persisted to disk', async () => {
-    const master = await createCard('Weekly task', 'todo', new Date('2026-04-07T00:00:00.000Z'), false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const master = await createCard(
+      'Weekly task',
+      'todo',
+      new Date('2026-04-07T00:00:00.000Z'),
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
     const child = await createChildOverride(master, 'done');
 
     const read = await readCard(child.id);
@@ -987,9 +1061,12 @@ describe('moveCard for recurring masters', () => {
 
   it('creates a child and advances master DUE when moved to done', async () => {
     const master = await createCard(
-      'Weekly standup', 'todo',
+      'Weekly standup',
+      'todo',
       new Date('2026-04-06T00:00:00.000Z'), // Monday Apr 6
-      false, undefined, undefined,
+      false,
+      undefined,
+      undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
 
@@ -1009,9 +1086,12 @@ describe('moveCard for recurring masters', () => {
 
   it('creates a child in in-progress and advances master DUE', async () => {
     const master = await createCard(
-      'Weekly standup', 'todo',
+      'Weekly standup',
+      'todo',
       new Date('2026-04-06T00:00:00.000Z'),
-      false, undefined, undefined,
+      false,
+      undefined,
+      undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
 
@@ -1026,9 +1106,12 @@ describe('moveCard for recurring masters', () => {
 
   it('moves a child card normally (no child-of-child)', async () => {
     const master = await createCard(
-      'Weekly standup', 'todo',
+      'Weekly standup',
+      'todo',
       new Date('2026-04-06T00:00:00.000Z'),
-      false, undefined, undefined,
+      false,
+      undefined,
+      undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
 
@@ -1052,9 +1135,12 @@ describe('moveCard for recurring masters', () => {
   it('completes master when series is exhausted', async () => {
     // COUNT=1 means only one instance; after completing it, no next instance
     const master = await createCard(
-      'One-time recurring', 'todo',
+      'One-time recurring',
+      'todo',
       new Date('2026-04-06T00:00:00.000Z'),
-      false, undefined, undefined,
+      false,
+      undefined,
+      undefined,
       'FREQ=WEEKLY;COUNT=1;BYDAY=MO'
     );
 
@@ -1109,7 +1195,15 @@ describe('readChildrenOf and readMasterOf', () => {
   });
 
   it('readChildrenOf returns children with matching uid', async () => {
-    const master = await createCard('Weekly', 'todo', new Date('2026-04-06T00:00:00.000Z'), false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const master = await createCard(
+      'Weekly',
+      'todo',
+      new Date('2026-04-06T00:00:00.000Z'),
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
     await createChildOverride(master, 'done');
     await createChildOverride(master, 'done');
     // Also create an unrelated card
@@ -1127,7 +1221,15 @@ describe('readChildrenOf and readMasterOf', () => {
   });
 
   it('readMasterOf returns the master (card without recurrenceId)', async () => {
-    const master = await createCard('Weekly', 'todo', new Date('2026-04-06T00:00:00.000Z'), false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const master = await createCard(
+      'Weekly',
+      'todo',
+      new Date('2026-04-06T00:00:00.000Z'),
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
     await createChildOverride(master, 'done');
 
     const found = await readMasterOf(master.uid);
@@ -1161,7 +1263,15 @@ describe('createCard with RRULE', () => {
 
   it('sets dtstart = due when rrule is provided', async () => {
     const due = new Date('2026-04-06T00:00:00.000Z');
-    const card = await createCard('Weekly', 'todo', due, false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const card = await createCard(
+      'Weekly',
+      'todo',
+      due,
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
 
     expect(card.dtstart!.toISOString()).toBe(due.toISOString());
     expect(card.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');
@@ -1170,7 +1280,15 @@ describe('createCard with RRULE', () => {
 
   it('persists RRULE and DTSTART to disk', async () => {
     const due = new Date('2026-04-06T00:00:00.000Z');
-    const card = await createCard('Weekly', 'todo', due, false, undefined, undefined, 'FREQ=WEEKLY;BYDAY=MO');
+    const card = await createCard(
+      'Weekly',
+      'todo',
+      due,
+      false,
+      undefined,
+      undefined,
+      'FREQ=WEEKLY;BYDAY=MO'
+    );
 
     const read = await readCard(card.id);
     expect(read!.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');

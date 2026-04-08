@@ -1,4 +1,9 @@
-import { sortCardsByDue, filterOldCompletedCards, sortDoneCards, getTodoVirtualColumn } from './resolvers';
+import {
+  sortCardsByDue,
+  filterOldCompletedCards,
+  sortDoneCards,
+  getTodoVirtualColumn,
+} from './resolvers';
 import { Card } from '../types';
 
 const base: Omit<Card, 'id' | 'uid' | 'due' | 'dueHasTime'> = {
@@ -34,11 +39,7 @@ describe('sortCardsByDue', () => {
   });
 
   it('sorts alphabetically when multiple cards lack a due date', () => {
-    const cards = [
-      card('3', 'Zebra'),
-      card('1', 'Apple'),
-      card('2', 'Mango'),
-    ];
+    const cards = [card('3', 'Zebra'), card('1', 'Apple'), card('2', 'Mango')];
     const sorted = sortCardsByDue(cards);
     expect(sorted.map((c) => c.summary)).toEqual(['Apple', 'Mango', 'Zebra']);
   });
@@ -56,10 +57,7 @@ describe('sortCardsByDue', () => {
 
   it('alphabetical sort is case-insensitive', () => {
     const sharedDue = new Date('2026-04-01T00:00:00Z');
-    const cards = [
-      card('2', 'banana', sharedDue, false),
-      card('1', 'Apple', sharedDue, false),
-    ];
+    const cards = [card('2', 'banana', sharedDue, false), card('1', 'Apple', sharedDue, false)];
     const sorted = sortCardsByDue(cards);
     expect(sorted.map((c) => c.summary)).toEqual(['Apple', 'banana']);
   });
@@ -97,8 +95,8 @@ describe('sortCardsByDue', () => {
 
 describe('filterOldCompletedCards', () => {
   const now = new Date('2026-04-01T12:00:00Z');
-  const recentDate = new Date('2026-03-15T12:00:00Z');   // 17 days ago
-  const oldDate = new Date('2026-02-01T12:00:00Z');       // 59 days ago
+  const recentDate = new Date('2026-03-15T12:00:00Z'); // 17 days ago
+  const oldDate = new Date('2026-02-01T12:00:00Z'); // 59 days ago
   const exactlyThirtyDays = new Date('2026-03-02T12:00:00Z'); // 30 days ago
 
   function doneCard(id: string, completed?: Date, modified?: Date): Card {

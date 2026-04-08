@@ -68,7 +68,19 @@ const RecurringIcon: React.FC<{ variant?: 'master' | 'child' }> = ({ variant = '
   </svg>
 );
 
-const Card: React.FC<CardProps> = ({ id, summary, description, column, priority, due, dueHasTime, completed, isRecurring, isRecurringChild, onClick }) => {
+const Card: React.FC<CardProps> = ({
+  id,
+  summary,
+  description,
+  column,
+  priority,
+  due,
+  dueHasTime,
+  completed,
+  isRecurring,
+  isRecurringChild,
+  onClick,
+}) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -78,10 +90,14 @@ const Card: React.FC<CardProps> = ({ id, summary, description, column, priority,
   const displayDateStr = isDone ? (completed ?? null) : (due ?? null);
   const displayHasTime = isDone ? true : (dueHasTime ?? false);
   const rawDisplay = displayDateStr != null ? formatDue(displayDateStr, displayHasTime) : null;
-  const dueDisplay = rawDisplay ? { text: rawDisplay.text, color: isDone ? 'grey' as const : rawDisplay.color } : null;
+  const dueDisplay = rawDisplay
+    ? { text: rawDisplay.text, color: isDone ? ('grey' as const) : rawDisplay.color }
+    : null;
 
-  const { onPointerDown: dndPointerDown, ...otherListeners } =
-    (listeners ?? {}) as Record<string, React.PointerEventHandler>;
+  const { onPointerDown: dndPointerDown, ...otherListeners } = (listeners ?? {}) as Record<
+    string,
+    React.PointerEventHandler
+  >;
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     pointerDownPos.current = { x: e.clientX, y: e.clientY };
@@ -111,7 +127,9 @@ const Card: React.FC<CardProps> = ({ id, summary, description, column, priority,
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm text-gray-800">{summary}</p>
         {dueDisplay && (
-          <span className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[dueDisplay.color]}`}>
+          <span
+            className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[dueDisplay.color]}`}
+          >
             {dueDisplay.text}
           </span>
         )}

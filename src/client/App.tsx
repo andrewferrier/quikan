@@ -66,9 +66,7 @@ const App: React.FC = () => {
   );
 
   const handleDragStart = (event: DragStartEvent) => {
-    const card = data?.columns
-      .flatMap((col) => col.cards)
-      .find((c) => c.id === event.active.id);
+    const card = data?.columns.flatMap((col) => col.cards).find((c) => c.id === event.active.id);
     setDraggingCard(card || null);
   };
 
@@ -91,16 +89,45 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAddCard = async (values: { summary: string; column: string; description?: string; due?: string; priority?: number; rrule?: string; rdates?: string[]; exdates?: string[] }) => {
+  const handleAddCard = async (values: {
+    summary: string;
+    column: string;
+    description?: string;
+    due?: string;
+    priority?: number;
+    rrule?: string;
+    rdates?: string[];
+    exdates?: string[];
+  }) => {
     try {
-      await createCard({ variables: { summary: values.summary, column: values.column, due: values.due, priority: values.priority ?? null, description: values.description ?? null, rrule: values.rrule ?? null, rdates: values.rdates ?? null, exdates: values.exdates ?? null } });
+      await createCard({
+        variables: {
+          summary: values.summary,
+          column: values.column,
+          due: values.due,
+          priority: values.priority ?? null,
+          description: values.description ?? null,
+          rrule: values.rrule ?? null,
+          rdates: values.rdates ?? null,
+          exdates: values.exdates ?? null,
+        },
+      });
       await refetch();
     } catch {
       toast.error('Could not create card — server unreachable.');
     }
   };
 
-  const handleEditCard = async (values: { summary: string; column: string; description?: string; due?: string; priority?: number; rrule?: string; rdates?: string[]; exdates?: string[] }) => {
+  const handleEditCard = async (values: {
+    summary: string;
+    column: string;
+    description?: string;
+    due?: string;
+    priority?: number;
+    rrule?: string;
+    rdates?: string[];
+    exdates?: string[];
+  }) => {
     if (!editingCard) return;
     try {
       await updateCard({
@@ -161,7 +188,12 @@ const App: React.FC = () => {
       </header>
 
       <main className="px-4 py-8">
-        <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
           <div className="flex gap-4 overflow-x-auto pb-4">
             {data?.columns.map((column) => (
               <Column
@@ -176,17 +208,22 @@ const App: React.FC = () => {
           </div>
           <DragOverlay dropAnimation={null}>
             {draggingCard ? (
-              <div className={`rotate-2 p-4 rounded-lg shadow-xl border border-gray-200 opacity-95 cursor-grabbing ${draggingCard.priority && draggingCard.priority >= 7 ? 'bg-red-100' : draggingCard.priority && draggingCard.priority >= 4 ? 'bg-yellow-100' : draggingCard.priority ? 'bg-blue-100' : 'bg-white'}`}>
+              <div
+                className={`rotate-2 p-4 rounded-lg shadow-xl border border-gray-200 opacity-95 cursor-grabbing ${draggingCard.priority && draggingCard.priority >= 7 ? 'bg-red-100' : draggingCard.priority && draggingCard.priority >= 4 ? 'bg-yellow-100' : draggingCard.priority ? 'bg-blue-100' : 'bg-white'}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-gray-800">{draggingCard.summary}</p>
-                  {draggingCard.due && (() => {
-                    const d = formatDue(draggingCard.due!, draggingCard.dueHasTime ?? false);
-                    return (
-                      <span className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[d.color]}`}>
-                        {d.text}
-                      </span>
-                    );
-                  })()}
+                  {draggingCard.due &&
+                    (() => {
+                      const d = formatDue(draggingCard.due!, draggingCard.dueHasTime ?? false);
+                      return (
+                        <span
+                          className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[d.color]}`}
+                        >
+                          {d.text}
+                        </span>
+                      );
+                    })()}
                 </div>
               </div>
             ) : null}

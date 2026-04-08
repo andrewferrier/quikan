@@ -154,7 +154,12 @@ export const resolvers = {
 
       return [
         ...virtualTodoCols,
-        { id: 'in-progress', name: 'In Progress', hiddenCount: 0, cards: sortCardsByDue(inProgressCards) },
+        {
+          id: 'in-progress',
+          name: 'In Progress',
+          hiddenCount: 0,
+          cards: sortCardsByDue(inProgressCards),
+        },
         { id: 'done', name: 'Done', hiddenCount: hiddenDoneCount, cards: sortDoneCards(doneCards) },
       ];
     },
@@ -171,7 +176,7 @@ export const resolvers = {
       // readMasterOf finds the card with matching uid but no recurrenceId
       const master = await readMasterOf(card.uid);
       // Don't return the card itself as its own parent
-      return master?.id !== card.id ? master ?? null : null;
+      return master?.id !== card.id ? (master ?? null) : null;
     },
   },
 

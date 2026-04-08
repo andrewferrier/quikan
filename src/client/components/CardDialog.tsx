@@ -52,7 +52,10 @@ function parseRRuleStr(rrule: string): RRuleState {
 
   if (parts.FREQ) state.freq = parts.FREQ as RRuleState['freq'];
   if (parts.INTERVAL) state.interval = parseInt(parts.INTERVAL, 10) || 1;
-  if (parts.COUNT) { state.endsType = 'count'; state.count = parseInt(parts.COUNT, 10) || 1; }
+  if (parts.COUNT) {
+    state.endsType = 'count';
+    state.count = parseInt(parts.COUNT, 10) || 1;
+  }
   if (parts.UNTIL) {
     state.endsType = 'until';
     const u = parts.UNTIL.replace(/T.*$/, '');
@@ -74,7 +77,10 @@ function parseRRuleStr(rrule: string): RRuleState {
     } else if (parts.BYDAY) {
       state.monthMode = 'weekday';
       const m = parts.BYDAY.match(/^(-?\d+)([A-Z]{2})$/);
-      if (m) { state.monthOrdinal = m[1]; state.monthWeekday = m[2]; }
+      if (m) {
+        state.monthOrdinal = m[1];
+        state.monthWeekday = m[2];
+      }
     }
   }
 
@@ -90,7 +96,10 @@ function parseRRuleStr(rrule: string): RRuleState {
     } else if (parts.BYDAY) {
       state.yearMode = 'weekday';
       const m = parts.BYDAY.match(/^(-?\d+)([A-Z]{2})$/);
-      if (m) { state.yearOrdinal = m[1]; state.yearWeekday = m[2]; }
+      if (m) {
+        state.yearOrdinal = m[1];
+        state.yearWeekday = m[2];
+      }
     }
   }
 
@@ -141,7 +150,20 @@ const WEEKDAYS = [
   { key: 'SU', label: 'S' },
 ];
 
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const ORDINALS = [
   { value: '1', label: '1st' },
@@ -159,7 +181,12 @@ const FREQ_LABELS: Record<string, string> = {
 };
 
 // Virtual todo sub-column IDs — map to 'todo' in the column dropdown
-const VIRTUAL_TODO_COL_IDS = new Set(['todo-today', 'todo-tomorrow', 'todo-this-week', 'todo-dated']);
+const VIRTUAL_TODO_COL_IDS = new Set([
+  'todo-today',
+  'todo-tomorrow',
+  'todo-this-week',
+  'todo-dated',
+]);
 
 // ─── CardDialog types ─────────────────────────────────────────────────────────
 
@@ -185,7 +212,16 @@ interface CardDialogProps {
   cardId?: string;
   initialValues?: CardDialogValues;
   onClose: () => void;
-  onSubmit: (values: { summary: string; column: string; description?: string; due?: string; priority?: number; rrule?: string; rdates?: string[]; exdates?: string[] }) => void;
+  onSubmit: (values: {
+    summary: string;
+    column: string;
+    description?: string;
+    due?: string;
+    priority?: number;
+    rrule?: string;
+    rdates?: string[];
+    exdates?: string[];
+  }) => void;
   onOpenCard?: (id: string) => void;
 }
 
@@ -274,7 +310,9 @@ function computeFormValues(initialValues: CardDialogValues): FormValues {
     if (initialValues.dueHasTime) {
       const { date, time } = utcToLocal(initialValues.due);
       if (time !== '00:00') {
-        dueDate = date; dueTime = time; includeTime = true;
+        dueDate = date;
+        dueTime = time;
+        includeTime = true;
       } else {
         dueDate = date;
       }
@@ -299,12 +337,23 @@ function computeFormValues(initialValues: CardDialogValues): FormValues {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
-const smallSelectClass = 'px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
-const smallInputClass = 'w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
+const inputClass =
+  'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
+const smallSelectClass =
+  'px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
+const smallInputClass =
+  'w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
-function DateListEditor({ label, dates, onChange }: { label: string; dates: string[]; onChange: (d: string[]) => void }) {
+function DateListEditor({
+  label,
+  dates,
+  onChange,
+}: {
+  label: string;
+  dates: string[];
+  onChange: (d: string[]) => void;
+}) {
   return (
     <div className="mb-3">
       <span className="block text-xs font-medium text-gray-600 mb-1">{label}</span>
@@ -356,7 +405,19 @@ const CardDialog: React.FC<CardDialogProps> = ({
   onOpenCard,
 }) => {
   const [form, setForm] = useState<FormValues>(defaultFormValues);
-  const { summary, description, column, prioritySelect, dueDate, dueTime, includeTime, isRecurring, rruleState, rdates, exdates } = form;
+  const {
+    summary,
+    description,
+    column,
+    prioritySelect,
+    dueDate,
+    dueTime,
+    includeTime,
+    isRecurring,
+    rruleState,
+    rdates,
+    exdates,
+  } = form;
   const setSummary = (v: string) => setForm((f) => ({ ...f, summary: v }));
   const setDescription = (v: string) => setForm((f) => ({ ...f, description: v }));
   const setColumn = (v: string) => setForm((f) => ({ ...f, column: v }));
@@ -366,7 +427,10 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const setIncludeTime = (v: boolean) => setForm((f) => ({ ...f, includeTime: v }));
   const setIsRecurring = (v: boolean) => setForm((f) => ({ ...f, isRecurring: v }));
   const setRRuleState = (updater: RRuleState | ((s: RRuleState) => RRuleState)) =>
-    setForm((f) => ({ ...f, rruleState: typeof updater === 'function' ? updater(f.rruleState) : updater }));
+    setForm((f) => ({
+      ...f,
+      rruleState: typeof updater === 'function' ? updater(f.rruleState) : updater,
+    }));
   const setRdates = (v: string[]) => setForm((f) => ({ ...f, rdates: v }));
   const setExdates = (v: string[]) => setForm((f) => ({ ...f, exdates: v }));
 
@@ -374,8 +438,12 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const rruleSupported = initialValues?.rruleSupported;
   const hasUnsupportedRRule = isRecurring && rruleSupported === false;
 
-  const [loadChildren, { data: childrenData }] = useLazyQuery<{ cardChildren: { id: string; summary: string; recurrenceId: string; column: string }[] }>(GET_CARD_CHILDREN);
-  const [loadParent, { data: parentData }] = useLazyQuery<{ cardParent: { id: string; summary: string; rrule: string } | null }>(GET_CARD_PARENT);
+  const [loadChildren, { data: childrenData }] = useLazyQuery<{
+    cardChildren: { id: string; summary: string; recurrenceId: string; column: string }[];
+  }>(GET_CARD_CHILDREN);
+  const [loadParent, { data: parentData }] = useLazyQuery<{
+    cardParent: { id: string; summary: string; rrule: string } | null;
+  }>(GET_CARD_PARENT);
 
   // Reinitialize form state when the dialog opens or its initial values change.
   // Updating state during render (the "store previous props" pattern) avoids using
@@ -394,12 +462,18 @@ const CardDialog: React.FC<CardDialogProps> = ({
     if (!isOpen || !cardId) return;
     if (initialValues?.rrule) loadChildren({ variables: { id: cardId } });
     if (initialValues?.isRecurringChild) loadParent({ variables: { id: cardId } });
-  }, [isOpen, cardId, initialValues?.rrule, initialValues?.isRecurringChild, loadChildren, loadParent]);
+  }, [
+    isOpen,
+    cardId,
+    initialValues?.rrule,
+    initialValues?.isRecurringChild,
+    loadChildren,
+    loadParent,
+  ]);
 
   if (!isOpen) return null;
 
-  const updateRRule = (patch: Partial<RRuleState>) =>
-    setRRuleState((s) => ({ ...s, ...patch }));
+  const updateRRule = (patch: Partial<RRuleState>) => setRRuleState((s) => ({ ...s, ...patch }));
 
   const toggleWeekday = (key: string) =>
     updateRRule({
@@ -447,10 +521,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
       <div className="bg-white rounded-lg p-6 w-[520px] max-w-[95%] max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold mb-4">{title}</h2>
         <form onSubmit={handleSubmit}>
-
           {/* Summary */}
           <div className="mb-4">
-            <label htmlFor="cd-summary" className={labelClass}>Title</label>
+            <label htmlFor="cd-summary" className={labelClass}>
+              Title
+            </label>
             <input
               type="text"
               id="cd-summary"
@@ -464,7 +539,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
           {/* Description */}
           <div className="mb-4">
-            <label htmlFor="cd-description" className={labelClass}>Description</label>
+            <label htmlFor="cd-description" className={labelClass}>
+              Description
+            </label>
             <textarea
               id="cd-description"
               value={description}
@@ -477,8 +554,15 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
           {/* Column */}
           <div className="mb-4">
-            <label htmlFor="cd-column" className={labelClass}>Column</label>
-            <select id="cd-column" value={column} onChange={(e) => setColumn(e.target.value)} className={inputClass}>
+            <label htmlFor="cd-column" className={labelClass}>
+              Column
+            </label>
+            <select
+              id="cd-column"
+              value={column}
+              onChange={(e) => setColumn(e.target.value)}
+              className={inputClass}
+            >
               <option value="todo">To Do</option>
               <option value="in-progress">In Progress</option>
               <option value="done">Done</option>
@@ -491,10 +575,30 @@ const CardDialog: React.FC<CardDialogProps> = ({
             <div className="flex gap-2">
               {(
                 [
-                  { value: '', label: 'None', base: 'border-gray-300 text-gray-500', active: 'bg-gray-600 border-gray-600 text-white' },
-                  { value: 'low', label: 'Low', base: 'border-blue-300 text-blue-600', active: 'bg-blue-600 border-blue-600 text-white' },
-                  { value: 'medium', label: 'Medium', base: 'border-yellow-400 text-yellow-700', active: 'bg-yellow-500 border-yellow-500 text-white' },
-                  { value: 'high', label: 'High', base: 'border-red-300 text-red-600', active: 'bg-red-600 border-red-600 text-white' },
+                  {
+                    value: '',
+                    label: 'None',
+                    base: 'border-gray-300 text-gray-500',
+                    active: 'bg-gray-600 border-gray-600 text-white',
+                  },
+                  {
+                    value: 'low',
+                    label: 'Low',
+                    base: 'border-blue-300 text-blue-600',
+                    active: 'bg-blue-600 border-blue-600 text-white',
+                  },
+                  {
+                    value: 'medium',
+                    label: 'Medium',
+                    base: 'border-yellow-400 text-yellow-700',
+                    active: 'bg-yellow-500 border-yellow-500 text-white',
+                  },
+                  {
+                    value: 'high',
+                    label: 'High',
+                    base: 'border-red-300 text-red-600',
+                    active: 'bg-red-600 border-red-600 text-white',
+                  },
                 ] as const
               ).map(({ value, label, base, active }) => (
                 <button
@@ -511,7 +615,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
           {/* Due date */}
           <div className="mb-4">
-            <label htmlFor="cd-due-date" className={labelClass}>Due date</label>
+            <label htmlFor="cd-due-date" className={labelClass}>
+              Due date
+            </label>
             <input
               type="date"
               id="cd-due-date"
@@ -581,7 +687,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
               {hasUnsupportedRRule && (
                 <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
                   <p className="font-medium mb-1">⚠ Advanced recurrence rule</p>
-                  <p className="text-xs text-yellow-700 mb-1">This rule uses features not editable in Quikan. It will be preserved as-is.</p>
+                  <p className="text-xs text-yellow-700 mb-1">
+                    This rule uses features not editable in Quikan. It will be preserved as-is.
+                  </p>
                   <code className="text-xs font-mono break-all">{initialValues?.rrule}</code>
                 </div>
               )}
@@ -595,7 +703,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
                       type="number"
                       min={1}
                       value={rruleState.interval}
-                      onChange={(e) => updateRRule({ interval: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                      onChange={(e) =>
+                        updateRRule({ interval: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                      }
                       className={smallInputClass}
                     />
                     <select
@@ -634,19 +744,35 @@ const CardDialog: React.FC<CardDialogProps> = ({
                   {rruleState.freq === 'MONTHLY' && (
                     <div className="mb-3 space-y-2">
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input type="radio" checked={rruleState.monthMode === 'day'} onChange={() => updateRRule({ monthMode: 'day' })} />
+                        <input
+                          type="radio"
+                          checked={rruleState.monthMode === 'day'}
+                          onChange={() => updateRRule({ monthMode: 'day' })}
+                        />
                         <span>On day</span>
                         <input
                           type="number"
-                          min={1} max={31}
+                          min={1}
+                          max={31}
                           value={rruleState.monthDay}
-                          onChange={(e) => updateRRule({ monthDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
+                          onChange={(e) =>
+                            updateRRule({
+                              monthDay: Math.min(
+                                31,
+                                Math.max(1, parseInt(e.target.value, 10) || 1)
+                              ),
+                            })
+                          }
                           className={smallInputClass}
                           disabled={rruleState.monthMode !== 'day'}
                         />
                       </label>
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input type="radio" checked={rruleState.monthMode === 'weekday'} onChange={() => updateRRule({ monthMode: 'weekday' })} />
+                        <input
+                          type="radio"
+                          checked={rruleState.monthMode === 'weekday'}
+                          onChange={() => updateRRule({ monthMode: 'weekday' })}
+                        />
                         <span>On the</span>
                         <select
                           value={rruleState.monthOrdinal}
@@ -654,7 +780,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
                           className={smallSelectClass}
                           disabled={rruleState.monthMode !== 'weekday'}
                         >
-                          {ORDINALS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {ORDINALS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
                         </select>
                         <select
                           value={rruleState.monthWeekday}
@@ -662,7 +792,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
                           className={smallSelectClass}
                           disabled={rruleState.monthMode !== 'weekday'}
                         >
-                          {WEEKDAYS.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}
+                          {WEEKDAYS.map((w) => (
+                            <option key={w.key} value={w.key}>
+                              {w.key}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>
@@ -678,23 +812,40 @@ const CardDialog: React.FC<CardDialogProps> = ({
                           onChange={(e) => updateRRule({ yearMonth: parseInt(e.target.value, 10) })}
                           className={smallSelectClass}
                         >
-                          {MONTH_NAMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                          {MONTH_NAMES.map((m, i) => (
+                            <option key={i + 1} value={i + 1}>
+                              {m}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input type="radio" checked={rruleState.yearMode === 'day'} onChange={() => updateRRule({ yearMode: 'day' })} />
+                        <input
+                          type="radio"
+                          checked={rruleState.yearMode === 'day'}
+                          onChange={() => updateRRule({ yearMode: 'day' })}
+                        />
                         <span>On day</span>
                         <input
                           type="number"
-                          min={1} max={31}
+                          min={1}
+                          max={31}
                           value={rruleState.yearDay}
-                          onChange={(e) => updateRRule({ yearDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
+                          onChange={(e) =>
+                            updateRRule({
+                              yearDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)),
+                            })
+                          }
                           className={smallInputClass}
                           disabled={rruleState.yearMode !== 'day'}
                         />
                       </label>
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input type="radio" checked={rruleState.yearMode === 'weekday'} onChange={() => updateRRule({ yearMode: 'weekday' })} />
+                        <input
+                          type="radio"
+                          checked={rruleState.yearMode === 'weekday'}
+                          onChange={() => updateRRule({ yearMode: 'weekday' })}
+                        />
                         <span>On the</span>
                         <select
                           value={rruleState.yearOrdinal}
@@ -702,7 +853,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
                           className={smallSelectClass}
                           disabled={rruleState.yearMode !== 'weekday'}
                         >
-                          {ORDINALS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {ORDINALS.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
                         </select>
                         <select
                           value={rruleState.yearWeekday}
@@ -710,7 +865,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
                           className={smallSelectClass}
                           disabled={rruleState.yearMode !== 'weekday'}
                         >
-                          {WEEKDAYS.map((w) => <option key={w.key} value={w.key}>{w.key}</option>)}
+                          {WEEKDAYS.map((w) => (
+                            <option key={w.key} value={w.key}>
+                              {w.key}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>
@@ -720,8 +879,15 @@ const CardDialog: React.FC<CardDialogProps> = ({
                   <div className="mb-3 space-y-2">
                     <span className="text-sm text-gray-600 block">Ends</span>
                     {(['never', 'count', 'until'] as const).map((type) => (
-                      <label key={type} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input type="radio" checked={rruleState.endsType === type} onChange={() => updateRRule({ endsType: type })} />
+                      <label
+                        key={type}
+                        className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+                      >
+                        <input
+                          type="radio"
+                          checked={rruleState.endsType === type}
+                          onChange={() => updateRRule({ endsType: type })}
+                        />
                         {type === 'never' && 'Never'}
                         {type === 'count' && (
                           <>
@@ -730,7 +896,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
                               type="number"
                               min={1}
                               value={rruleState.count}
-                              onChange={(e) => updateRRule({ count: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                              onChange={(e) =>
+                                updateRRule({
+                                  count: Math.max(1, parseInt(e.target.value, 10) || 1),
+                                })
+                              }
                               className={smallInputClass}
                               disabled={rruleState.endsType !== 'count'}
                             />
@@ -755,8 +925,16 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
                   {/* RDates / EXDates */}
                   <div className="border-t border-gray-100 pt-3 mt-3">
-                    <DateListEditor label="Additional dates (RDATEs)" dates={rdates} onChange={setRdates} />
-                    <DateListEditor label="Excluded dates (EXDATEs)" dates={exdates} onChange={setExdates} />
+                    <DateListEditor
+                      label="Additional dates (RDATEs)"
+                      dates={rdates}
+                      onChange={setRdates}
+                    />
+                    <DateListEditor
+                      label="Excluded dates (EXDATEs)"
+                      dates={exdates}
+                      onChange={setExdates}
+                    />
                   </div>
                 </>
               )}
@@ -768,9 +946,13 @@ const CardDialog: React.FC<CardDialogProps> = ({
             <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
               {isChild ? (
                 <>
-                  <p className="text-gray-500 text-xs font-medium mb-1">🔄 Instance of recurring series</p>
+                  <p className="text-gray-500 text-xs font-medium mb-1">
+                    🔄 Instance of recurring series
+                  </p>
                   {initialValues?.recurrenceId && (
-                    <p className="text-gray-600 text-xs mb-2">Override for: {formatRecurrenceId(initialValues.recurrenceId)}</p>
+                    <p className="text-gray-600 text-xs mb-2">
+                      Override for: {formatRecurrenceId(initialValues.recurrenceId)}
+                    </p>
                   )}
                   {parent && (
                     <button
@@ -784,7 +966,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
                 </>
               ) : (
                 <>
-                  <p className="text-gray-500 text-xs font-medium mb-2">🔄 {children.length} instance override{children.length !== 1 ? 's' : ''}</p>
+                  <p className="text-gray-500 text-xs font-medium mb-2">
+                    🔄 {children.length} instance override{children.length !== 1 ? 's' : ''}
+                  </p>
                   <div className="flex flex-wrap gap-1">
                     {children.map((child) => (
                       <button
@@ -793,7 +977,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
                         onClick={() => onOpenCard?.(child.id)}
                         className="px-2 py-0.5 bg-gray-200 hover:bg-gray-300 rounded text-xs text-gray-700 transition-colors"
                       >
-                        {child.recurrenceId ? formatRecurrenceId(child.recurrenceId) : child.summary}
+                        {child.recurrenceId
+                          ? formatRecurrenceId(child.recurrenceId)
+                          : child.summary}
                       </button>
                     ))}
                   </div>
@@ -828,4 +1014,3 @@ const CardDialog: React.FC<CardDialogProps> = ({
 };
 
 export default CardDialog;
-

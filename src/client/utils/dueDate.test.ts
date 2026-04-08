@@ -173,7 +173,6 @@ describe('00:00 time treated as date-only', () => {
   });
 });
 
-
 describe('edge cases', () => {
   it('date-only midnight boundary: exactly at start of window (yesterday 00:00)', () => {
     expect(formatDue('2026-03-30', false, NOW).text).toBe('Monday'); // in window
