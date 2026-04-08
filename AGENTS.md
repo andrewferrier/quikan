@@ -15,6 +15,7 @@ Before considering any change complete, always run these steps in order and fix 
 1. `npm run format` — auto-formats all source files
 2. `npm run lint` — fixes must be made manually; no new errors should be introduced
 3. `npm run test` — all tests must pass
+4. `npm run build` — build must complete without errors
 
 ## Architecture
 
