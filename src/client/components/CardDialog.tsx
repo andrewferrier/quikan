@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLazyQuery } from '@apollo/client';
+import { useLazyQuery } from '@apollo/client/react';
 import { GET_CARD_CHILDREN, GET_CARD_PARENT } from '../gql/queries';
 
 // ─── RRULE helpers ───────────────────────────────────────────────────────────

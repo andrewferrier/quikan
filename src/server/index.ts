@@ -1,6 +1,6 @@
 import express from 'express';
 import { ApolloServer } from '@apollo/server';
-import { expressMiddleware } from '@apollo/server/express4';
+import { expressMiddleware } from '@as-integrations/express5';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import rateLimit from 'express-rate-limit';
