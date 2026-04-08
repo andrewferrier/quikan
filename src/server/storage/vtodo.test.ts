@@ -1,7 +1,8 @@
 import { mkdtemp, rm, readFile } from 'fs/promises';
+import { readdirSync } from 'fs';
 import { tmpdir } from 'os';
 import * as nodePath from 'path';
-import { parseVTODO, cardToVTODO, createCard, updateCard, moveCard, readCard, deleteCard } from '../storage/vtodo';
+import { parseVTODO, cardToVTODO, createCard, updateCard, moveCard, readCard, deleteCard, writeCard } from '../storage/vtodo';
 import { Card } from '../types';
 
 jest.mock('ical.js', () => {
@@ -1081,7 +1082,6 @@ describe('moveCard for recurring masters', () => {
     expect(result!.isRecurringChild).toBeFalsy();
 
     // No extra card files created
-    const { readdirSync } = require('fs');
     const files = readdirSync(tempDir).filter((f: string) => f.endsWith('.ics'));
     expect(files).toHaveLength(1);
   });
@@ -1090,7 +1090,6 @@ describe('moveCard for recurring masters', () => {
     // Create master with unsupported RRULE manually
     const master = await createCard('Hourly task', 'todo');
     // Patch in an unsupported rrule by directly updating the card object
-    const { writeCard } = require('../storage/vtodo');
     await writeCard({ ...master, rrule: 'FREQ=HOURLY', rruleSupported: false });
 
     const result = await moveCard(master.id, 'done');

@@ -234,6 +234,69 @@ function formatRecurrenceId(recurrenceId: string): string {
   }
 }
 
+// ─── Form state ──────────────────────────────────────────────────────────────
+
+interface FormValues {
+  summary: string;
+  description: string;
+  column: string;
+  prioritySelect: string;
+  dueDate: string;
+  dueTime: string;
+  includeTime: boolean;
+  isRecurring: boolean;
+  rruleState: RRuleState;
+  rdates: string[];
+  exdates: string[];
+}
+
+function defaultFormValues(): FormValues {
+  return {
+    summary: '',
+    description: '',
+    column: 'todo',
+    prioritySelect: '',
+    dueDate: todayStr(),
+    dueTime: '',
+    includeTime: false,
+    isRecurring: false,
+    rruleState: defaultRRuleState(),
+    rdates: [],
+    exdates: [],
+  };
+}
+
+function computeFormValues(initialValues: CardDialogValues): FormValues {
+  let dueDate = '';
+  let dueTime = '';
+  let includeTime = false;
+  if (initialValues.due) {
+    if (initialValues.dueHasTime) {
+      const { date, time } = utcToLocal(initialValues.due);
+      if (time !== '00:00') {
+        dueDate = date; dueTime = time; includeTime = true;
+      } else {
+        dueDate = date;
+      }
+    } else {
+      dueDate = initialValues.due;
+    }
+  }
+  return {
+    summary: initialValues.summary,
+    description: initialValues.description ?? '',
+    column: VIRTUAL_TODO_COL_IDS.has(initialValues.column) ? 'todo' : initialValues.column,
+    prioritySelect: priorityToSelect(initialValues.priority),
+    dueDate,
+    dueTime,
+    includeTime,
+    isRecurring: !!initialValues.rrule,
+    rruleState: initialValues.rrule ? parseRRuleStr(initialValues.rrule) : defaultRRuleState(),
+    rdates: initialValues.rdates ?? [],
+    exdates: initialValues.exdates ?? [],
+  };
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -292,18 +355,20 @@ const CardDialog: React.FC<CardDialogProps> = ({
   onSubmit,
   onOpenCard,
 }) => {
-  const [summary, setSummary] = useState('');
-  const [description, setDescription] = useState('');
-  const [column, setColumn] = useState('todo');
-  const [prioritySelect, setPrioritySelect] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('');
-  const [includeTime, setIncludeTime] = useState(false);
-
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [rruleState, setRRuleState] = useState<RRuleState>(defaultRRuleState());
-  const [rdates, setRdates] = useState<string[]>([]);
-  const [exdates, setExdates] = useState<string[]>([]);
+  const [form, setForm] = useState<FormValues>(defaultFormValues);
+  const { summary, description, column, prioritySelect, dueDate, dueTime, includeTime, isRecurring, rruleState, rdates, exdates } = form;
+  const setSummary = (v: string) => setForm((f) => ({ ...f, summary: v }));
+  const setDescription = (v: string) => setForm((f) => ({ ...f, description: v }));
+  const setColumn = (v: string) => setForm((f) => ({ ...f, column: v }));
+  const setPrioritySelect = (v: string) => setForm((f) => ({ ...f, prioritySelect: v }));
+  const setDueDate = (v: string) => setForm((f) => ({ ...f, dueDate: v }));
+  const setDueTime = (v: string) => setForm((f) => ({ ...f, dueTime: v }));
+  const setIncludeTime = (v: boolean) => setForm((f) => ({ ...f, includeTime: v }));
+  const setIsRecurring = (v: boolean) => setForm((f) => ({ ...f, isRecurring: v }));
+  const setRRuleState = (updater: RRuleState | ((s: RRuleState) => RRuleState)) =>
+    setForm((f) => ({ ...f, rruleState: typeof updater === 'function' ? updater(f.rruleState) : updater }));
+  const setRdates = (v: string[]) => setForm((f) => ({ ...f, rdates: v }));
+  const setExdates = (v: string[]) => setForm((f) => ({ ...f, exdates: v }));
 
   const isChild = initialValues?.isRecurringChild ?? false;
   const rruleSupported = initialValues?.rruleSupported;
@@ -312,50 +377,24 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const [loadChildren, { data: childrenData }] = useLazyQuery<{ cardChildren: { id: string; summary: string; recurrenceId: string; column: string }[] }>(GET_CARD_CHILDREN);
   const [loadParent, { data: parentData }] = useLazyQuery<{ cardParent: { id: string; summary: string; rrule: string } | null }>(GET_CARD_PARENT);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (initialValues) {
-      setSummary(initialValues.summary);
-      setDescription(initialValues.description ?? '');
-      setColumn(VIRTUAL_TODO_COL_IDS.has(initialValues.column) ? 'todo' : initialValues.column);
-      setPrioritySelect(priorityToSelect(initialValues.priority));
-      if (initialValues.due) {
-        if (initialValues.dueHasTime) {
-          const { date, time } = utcToLocal(initialValues.due);
-          if (time === '00:00') {
-            setDueDate(date); setDueTime(''); setIncludeTime(false);
-          } else {
-            setDueDate(date); setDueTime(time); setIncludeTime(true);
-          }
-        } else {
-          setDueDate(initialValues.due); setDueTime(''); setIncludeTime(false);
-        }
-      } else {
-        setDueDate(''); setDueTime(''); setIncludeTime(false);
-      }
-
-      if (initialValues.rrule) {
-        setIsRecurring(true);
-        setRRuleState(parseRRuleStr(initialValues.rrule));
-      } else {
-        setIsRecurring(false);
-        setRRuleState(defaultRRuleState());
-      }
-      setRdates(initialValues.rdates ?? []);
-      setExdates(initialValues.exdates ?? []);
-    } else {
-      setSummary(''); setDescription(''); setColumn('todo'); setPrioritySelect('');
-      setDueDate(todayStr()); setDueTime(''); setIncludeTime(false);
-      setIsRecurring(false); setRRuleState(defaultRRuleState());
-      setRdates([]); setExdates([]);
+  // Reinitialize form state when the dialog opens or its initial values change.
+  // Updating state during render (the "store previous props" pattern) avoids using
+  // an effect for derived state, per https://react.dev/learn/you-might-not-need-an-effect
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevInitialValues, setPrevInitialValues] = useState(initialValues);
+  if (isOpen !== prevIsOpen || initialValues !== prevInitialValues) {
+    setPrevIsOpen(isOpen);
+    setPrevInitialValues(initialValues);
+    if (isOpen) {
+      setForm(initialValues ? computeFormValues(initialValues) : defaultFormValues());
     }
-  }, [isOpen, initialValues]);
+  }
 
   useEffect(() => {
     if (!isOpen || !cardId) return;
     if (initialValues?.rrule) loadChildren({ variables: { id: cardId } });
     if (initialValues?.isRecurringChild) loadParent({ variables: { id: cardId } });
-  }, [isOpen, cardId, initialValues?.rrule, initialValues?.isRecurringChild]);
+  }, [isOpen, cardId, initialValues?.rrule, initialValues?.isRecurringChild, loadChildren, loadParent]);
 
   if (!isOpen) return null;
 
@@ -739,7 +778,7 @@ const CardDialog: React.FC<CardDialogProps> = ({
                       onClick={() => onOpenCard?.(parent.id)}
                       className="text-blue-600 hover:text-blue-800 text-xs underline"
                     >
-                      → Open master: "{parent.summary}"
+                      → Open master: &ldquo;{parent.summary}&rdquo;
                     </button>
                   )}
                 </>

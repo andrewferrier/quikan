@@ -8,6 +8,10 @@ see if it can be improved / needs to be updated.
 
 - **Comments**: Only add comments when they provide insight that isn't obvious from the code itself. Never add comments that just label or restate what the code does (e.g., `// Start server` above `app.listen()`). Prefer explaining *why* something is done, or clarifying genuinely non-obvious *what*.
 
+## Finalizing Changes
+
+- Always run `npm run lint` before considering any change complete. Fix any new errors introduced by your changes.
+
 ## Architecture
 
 - **Frontend**: React + TypeScript + TailwindCSS (`src/client/`)
