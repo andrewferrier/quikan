@@ -26,3 +26,13 @@ repos:
       rev: v0.19.1
       hooks:
           - id: gitlint
+
+    # Language specific
+
+    - repo: local
+      hooks:
+          - id: npm-format
+            name: Prettier format
+            entry: npm run format
+            language: system
+            pass_filenames: false

@@ -10,7 +10,11 @@ see if it can be improved / needs to be updated.
 
 ## Finalizing Changes
 
-- Always run `npm run lint` before considering any change complete. Fix any new errors introduced by your changes.
+Before considering any change complete, always run these steps in order and fix any issues:
+
+1. `npm run format` — auto-formats all source files
+2. `npm run lint` — fixes must be made manually; no new errors should be introduced
+3. `npm run test` — all tests must pass
 
 ## Architecture
 
