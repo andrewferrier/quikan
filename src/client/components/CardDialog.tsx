@@ -404,7 +404,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
   onSubmit,
   onOpenCard,
 }) => {
-  const [form, setForm] = useState<FormValues>(defaultFormValues);
+  const [form, setForm] = useState<FormValues>(() =>
+    isOpen && initialValues ? computeFormValues(initialValues) : defaultFormValues()
+  );
   const {
     summary,
     description,
@@ -517,7 +519,11 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const parent = parentData?.cardParent ?? null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    >
       <div className="bg-white rounded-lg p-6 w-[520px] max-w-[95%] max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-semibold mb-4">{title}</h2>
         <form onSubmit={handleSubmit}>

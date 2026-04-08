@@ -12,8 +12,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "vite build",
     "start": "node dist/server/index.js",
-    "test": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:watch": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest && playwright test",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
@@ -46,6 +45,7 @@
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.5",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/vite": "^4.2.2",
     "@types/cors": "^2.8.19",

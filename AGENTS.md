@@ -14,7 +14,7 @@ Before considering any change complete, always run these steps in order and fix 
 
 1. `npm run format` — auto-formats all source files
 2. `npm run lint` — fixes must be made manually; no new errors should be introduced
-3. `npm run test` — all tests must pass
+3. `npm run test` — all tests must pass (including Playwright E2E tests)
 4. `npm run build` — build must complete without errors
 
 ## Architecture
@@ -73,14 +73,15 @@ mutation {
 
 ## npm Scripts
 
-| Command          | Description                                     |
-| ---------------- | ----------------------------------------------- |
-| `npm run dev`    | Start dev servers (backend + frontend with HMR) |
-| `npm run build`  | Build client and server for production          |
-| `npm start`      | Start production server                         |
-| `npm test`       | Run tests                                       |
-| `npm run lint`   | Lint code                                       |
-| `npm run format` | Format code with Prettier                       |
+| Command              | Description                                     |
+| -------------------- | ----------------------------------------------- |
+| `npm run dev`        | Start dev servers (backend + frontend with HMR) |
+| `npm run build`      | Build client and server for production          |
+| `npm start`          | Start production server                         |
+| `npm test`           | Run Jest unit tests                             |
+| `npm run test:e2e`   | Run Playwright E2E tests                        |
+| `npm run lint`       | Lint code                                       |
+| `npm run format`     | Format code with Prettier                       |
 
 ## TypeScript Config
 

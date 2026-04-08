@@ -122,10 +122,13 @@ const Card: React.FC<CardProps> = ({
       {...otherListeners}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
+      data-testid="card"
       className={`${priorityBgClass(priority)} p-4 rounded-lg shadow-sm border ${dueDisplay?.color === 'red' ? 'border-red-400' : 'border-gray-200'} cursor-pointer hover:shadow-md transition-shadow`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm text-gray-800">{summary}</p>
+        <p className="text-sm text-gray-800" data-testid="card-summary">
+          {summary}
+        </p>
         {dueDisplay && (
           <span
             className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[dueDisplay.color]}`}
