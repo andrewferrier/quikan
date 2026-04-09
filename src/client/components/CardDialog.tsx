@@ -626,13 +626,29 @@ const CardDialog: React.FC<CardDialogProps> = ({
             <label htmlFor="cd-due-date" className={labelClass}>
               Due date
             </label>
-            <input
-              type="date"
-              id="cd-due-date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className={inputClass}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                id="cd-due-date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className={`${inputClass} flex-1`}
+              />
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDueDate('');
+                    setDueTime('');
+                    setIncludeTime(false);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+                  aria-label="Clear due date"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
 
           {dueDate && (

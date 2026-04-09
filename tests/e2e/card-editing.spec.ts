@@ -88,4 +88,21 @@ test.describe('card editing', () => {
     await expect(page.locator('[data-testid="card-summary"]').filter({ hasText: 'No date todo' })).toBeVisible();
     await expect(page.locator('[data-testid="card-summary"]').filter({ hasText: 'This change should be discarded' })).not.toBeVisible();
   });
+
+  test('clearing the due date moves the card to Todo (No Due Date)', async ({ page }) => {
+    await page.goto('/');
+    const card = page.locator('[data-testid="column-todo-today"]')
+      .locator('[data-testid="card"]')
+      .filter({ hasText: 'Today todo' });
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await card.click();
+
+    const dialog = page.locator('[role="dialog"]');
+    await dialog.getByRole('button', { name: 'Clear due date' }).click();
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).not.toBeVisible();
+
+    const noDateCol = page.locator('[data-testid="column-todo"]');
+    await expect(noDateCol.locator('[data-testid="card-summary"]').filter({ hasText: 'Today todo' })).toBeVisible();
+  });
 });
