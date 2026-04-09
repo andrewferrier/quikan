@@ -56,7 +56,10 @@ function formatDueField(card: Card): string | null {
   return card.due.toISOString();
 }
 
-function parseDueInput(due: string | null | undefined): { due?: Date; dueHasTime?: boolean } {
+export function parseDueInput(due: string | null | undefined): {
+  due?: Date;
+  dueHasTime?: boolean;
+} {
   if (!due) return { due: undefined, dueHasTime: undefined };
   const hasTime = due.includes('T');
   if (hasTime) {
@@ -66,7 +69,7 @@ function parseDueInput(due: string | null | undefined): { due?: Date; dueHasTime
   return { due: new Date(Date.UTC(year, month - 1, day)), dueHasTime: false };
 }
 
-function parseRdatesInput(dates: string[] | null | undefined): Date[] | undefined {
+export function parseRdatesInput(dates: string[] | null | undefined): Date[] | undefined {
   if (!dates || dates.length === 0) return undefined;
   return dates.map((d) => new Date(d));
 }
@@ -102,6 +105,40 @@ export function filterOldCompletedCards(cards: Card[], now: Date = new Date()): 
     const completionDate = card.completed ?? card.modified;
     return now.getTime() - completionDate.getTime() <= THIRTY_DAYS_MS;
   });
+}
+
+/**
+ * Compute the card field updates needed when dragging to a virtual todo column.
+ * Returns 'unchanged' for `todo-dated` (a date must be set explicitly via edit).
+ */
+export function computeVirtualColumnUpdates(
+  targetColumn: string,
+  now: Date
+): Partial<Card> | 'unchanged' {
+  const updates: Partial<Card> = { column: 'todo' };
+
+  if (targetColumn === 'todo-today') {
+    updates.due = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    updates.dueHasTime = false;
+  } else if (targetColumn === 'todo-tomorrow') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    updates.dueHasTime = false;
+  } else if (targetColumn === 'todo-this-week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    updates.dueHasTime = false;
+  } else if (targetColumn === 'todo-dated') {
+    return 'unchanged';
+  } else {
+    // 'todo' — no date
+    updates.due = undefined;
+    updates.dueHasTime = undefined;
+  }
+
+  return updates;
 }
 
 export const resolvers = {
@@ -280,32 +317,11 @@ export const resolvers = {
       { id, targetColumn }: { id: string; targetColumn: string }
     ): Promise<Card | null> => {
       if (VIRTUAL_TODO_COL_IDS.has(targetColumn)) {
-        const now = new Date();
-        const updates: Partial<Card> = { column: 'todo' };
-
-        if (targetColumn === 'todo-today') {
-          updates.due = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-          updates.dueHasTime = false;
-        } else if (targetColumn === 'todo-tomorrow') {
-          const d = new Date(now);
-          d.setDate(d.getDate() + 1);
-          updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-          updates.dueHasTime = false;
-        } else if (targetColumn === 'todo-this-week') {
-          const d = new Date(now);
-          d.setDate(d.getDate() + 2);
-          updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-          updates.dueHasTime = false;
-        } else if (targetColumn === 'todo-dated') {
-          // Can't assign a specific date by drag alone — return card unchanged
+        const result = computeVirtualColumnUpdates(targetColumn, new Date());
+        if (result === 'unchanged') {
           return await readCard(id);
-        } else {
-          // 'todo' — no date
-          updates.due = undefined;
-          updates.dueHasTime = undefined;
         }
-
-        return await updateCardStorage(id, updates);
+        return await updateCardStorage(id, result);
       }
 
       return await moveCardStorage(id, targetColumn);

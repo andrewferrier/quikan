@@ -3,6 +3,9 @@ import {
   filterOldCompletedCards,
   sortDoneCards,
   getTodoVirtualColumn,
+  parseDueInput,
+  parseRdatesInput,
+  computeVirtualColumnUpdates,
 } from './resolvers';
 import { Card } from '../types';
 
@@ -280,5 +283,98 @@ describe('getTodoVirtualColumn', () => {
   it('returns "todo-dated" for a card due far in the future', () => {
     const due = new Date(Date.UTC(2027, 0, 1)); // 2027-01-01 (clearly >7 days)
     expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-dated');
+  });
+});
+
+describe('parseDueInput', () => {
+  it('returns undefined fields for null input', () => {
+    expect(parseDueInput(null)).toEqual({ due: undefined, dueHasTime: undefined });
+  });
+
+  it('returns undefined fields for undefined input', () => {
+    expect(parseDueInput(undefined)).toEqual({ due: undefined, dueHasTime: undefined });
+  });
+
+  it('returns undefined fields for empty string', () => {
+    expect(parseDueInput('')).toEqual({ due: undefined, dueHasTime: undefined });
+  });
+
+  it('parses a date-only string as UTC midnight with dueHasTime=false', () => {
+    const result = parseDueInput('2026-06-15');
+    expect(result.dueHasTime).toBe(false);
+    expect(result.due).toEqual(new Date(Date.UTC(2026, 5, 15)));
+  });
+
+  it('parses a datetime ISO string with dueHasTime=true', () => {
+    const result = parseDueInput('2026-06-15T10:30:00.000Z');
+    expect(result.dueHasTime).toBe(true);
+    expect(result.due).toEqual(new Date('2026-06-15T10:30:00.000Z'));
+  });
+});
+
+describe('parseRdatesInput', () => {
+  it('returns undefined for null', () => {
+    expect(parseRdatesInput(null)).toBeUndefined();
+  });
+
+  it('returns undefined for undefined', () => {
+    expect(parseRdatesInput(undefined)).toBeUndefined();
+  });
+
+  it('returns undefined for empty array', () => {
+    expect(parseRdatesInput([])).toBeUndefined();
+  });
+
+  it('parses an array of ISO strings into Dates', () => {
+    const result = parseRdatesInput(['2026-04-01T00:00:00.000Z', '2026-05-01T00:00:00.000Z']);
+    expect(result).toEqual([
+      new Date('2026-04-01T00:00:00.000Z'),
+      new Date('2026-05-01T00:00:00.000Z'),
+    ]);
+  });
+});
+
+// Tests run with TZ=UTC.
+describe('computeVirtualColumnUpdates', () => {
+  const NOW = new Date('2026-04-09T12:00:00Z');
+
+  it('sets due to today (UTC midnight) for todo-today', () => {
+    const result = computeVirtualColumnUpdates('todo-today', NOW);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.column).toBe('todo');
+    expect(updates.dueHasTime).toBe(false);
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 9)));
+  });
+
+  it('sets due to tomorrow (UTC midnight) for todo-tomorrow', () => {
+    const result = computeVirtualColumnUpdates('todo-tomorrow', NOW);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.column).toBe('todo');
+    expect(updates.dueHasTime).toBe(false);
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 10)));
+  });
+
+  it('sets due to today+2 (UTC midnight) for todo-this-week', () => {
+    const result = computeVirtualColumnUpdates('todo-this-week', NOW);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.column).toBe('todo');
+    expect(updates.dueHasTime).toBe(false);
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 11)));
+  });
+
+  it('returns "unchanged" for todo-dated', () => {
+    expect(computeVirtualColumnUpdates('todo-dated', NOW)).toBe('unchanged');
+  });
+
+  it('clears due date for todo (no date)', () => {
+    const result = computeVirtualColumnUpdates('todo', NOW);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.column).toBe('todo');
+    expect(updates.due).toBeUndefined();
+    expect(updates.dueHasTime).toBeUndefined();
   });
 });

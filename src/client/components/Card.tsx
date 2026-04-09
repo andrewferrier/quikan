@@ -131,6 +131,7 @@ const Card: React.FC<CardProps> = ({
         </p>
         {dueDisplay && (
           <span
+            data-testid="due-date"
             className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[dueDisplay.color]}`}
           >
             {dueDisplay.text}

@@ -62,6 +62,7 @@ const Column: React.FC<ColumnProps> = ({ id, name, cards, hiddenCount, onCardCli
   return (
     <div
       ref={setNodeRef}
+      data-testid={`column-${id}`}
       className={`flex-1 min-w-[300px] rounded-lg p-4 transition-colors ${isOver ? 'bg-gray-200' : 'bg-gray-100'}`}
     >
       <div className="mb-4">
