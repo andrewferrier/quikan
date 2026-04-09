@@ -634,6 +634,7 @@ import {
   createChildOverride,
   readChildrenOf,
   readMasterOf,
+  formatRruleText,
 } from '../storage/vtodo';
 
 describe('uid handling', () => {
@@ -1298,5 +1299,142 @@ describe('createCard with RRULE', () => {
   it('does not set dtstart when no rrule is provided', async () => {
     const card = await createCard('Plain task', 'todo');
     expect(card.dtstart).toBeUndefined();
+  });
+});
+
+describe('formatRruleText', () => {
+  const base: Card = {
+    id: 'test',
+    uid: 'test',
+    summary: 'Test',
+    column: 'todo',
+    created: new Date(),
+    modified: new Date(),
+    dtstart: new Date('2026-01-01T00:00:00.000Z'),
+    due: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  it('returns null for a non-recurring card', () => {
+    expect(formatRruleText({ ...base })).toBeNull();
+  });
+
+  it('formats a simple weekly recurrence', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY' })).toBe('Every week');
+  });
+
+  it('formats every 2 weeks', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;INTERVAL=2' })).toBe('Every 2 weeks');
+  });
+
+  it('formats every 3 months', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=MONTHLY;INTERVAL=3' })).toBe('Every 3 months');
+  });
+
+  it('formats daily', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=DAILY' })).toBe('Every day');
+  });
+
+  it('formats yearly', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=YEARLY;INTERVAL=2' })).toBe('Every 2 years');
+  });
+
+  it('appends until date when UNTIL is present', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;UNTIL=20260601T000000Z' })).toBe(
+      'Every week, until 2026-06-01'
+    );
+  });
+
+  it('appends occurrences remaining when COUNT is present and on first occurrence', () => {
+    const card: Card = {
+      ...base,
+      rrule: 'FREQ=WEEKLY;COUNT=5',
+      dtstart: new Date('2026-01-01T00:00:00.000Z'),
+      due: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    expect(formatRruleText(card)).toBe('Every week (4 occurrences remaining)');
+  });
+
+  it('shows 1 occurrence remaining correctly (singular)', () => {
+    const card: Card = {
+      ...base,
+      rrule: 'FREQ=WEEKLY;COUNT=2',
+      dtstart: new Date('2026-01-01T00:00:00.000Z'),
+      due: new Date('2026-01-01T00:00:00.000Z'),
+    };
+    expect(formatRruleText(card)).toBe('Every week (1 occurrence remaining)');
+  });
+
+  it('shows no count suffix when on the final occurrence', () => {
+    const card: Card = {
+      ...base,
+      rrule: 'FREQ=WEEKLY;COUNT=3',
+      dtstart: new Date('2026-01-01T00:00:00.000Z'),
+      due: new Date('2026-01-15T00:00:00.000Z'), // 3rd occurrence = last
+    };
+    expect(formatRruleText(card)).toBe('Every week');
+  });
+
+  it('returns null for an unparseable rrule', () => {
+    expect(formatRruleText({ ...base, rrule: 'NOT_VALID_GARBAGE' })).toBeNull();
+  });
+
+  it('weekly with a single BYDAY', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;BYDAY=MO' })).toBe(
+      'Every week on Monday'
+    );
+  });
+
+  it('weekly with multiple BYDAY days', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;INTERVAL=3;BYDAY=MO,TH,SU' })).toBe(
+      'Every 3 weeks on Monday, Thursday, and Sunday'
+    );
+  });
+
+  it('weekly with two BYDAY days', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;BYDAY=TU,FR' })).toBe(
+      'Every week on Tuesday and Friday'
+    );
+  });
+
+  it('monthly with positional BYDAY (2nd Monday)', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=MONTHLY;BYDAY=2MO' })).toBe(
+      'Every month on the 2nd Monday'
+    );
+  });
+
+  it('monthly with positional BYDAY (last Friday)', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=MONTHLY;BYDAY=-1FR' })).toBe(
+      'Every month on the last Friday'
+    );
+  });
+
+  it('monthly with BYMONTHDAY', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=MONTHLY;BYMONTHDAY=2' })).toBe(
+      'Every month on the 2nd'
+    );
+  });
+
+  it('monthly with BYMONTHDAY (3rd)', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=MONTHLY;BYMONTHDAY=3' })).toBe(
+      'Every month on the 3rd'
+    );
+  });
+
+  it('yearly with BYMONTH and BYMONTHDAY', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=9' })).toBe(
+      'Every year on 9th January'
+    );
+  });
+
+  it('yearly with BYMONTH and BYMONTHDAY (1st March)', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=1' })).toBe(
+      'Every year on 1st March'
+    );
+  });
+
+  it('qualifier plus UNTIL', () => {
+    expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;BYDAY=MO;UNTIL=20260601T000000Z' })).toBe(
+      'Every week on Monday, until 2026-06-01'
+    );
   });
 });

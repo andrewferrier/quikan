@@ -55,4 +55,13 @@ test.describe('card display', () => {
     await expect(badge).toBeVisible();
     await expect(badge).toHaveClass(/text-gray-400/);
   });
+
+  test('recurring card shows repeat pattern text to the left of the repeat icon', async ({ page }) => {
+    await page.goto('/');
+    const card = page.locator('[data-testid="card"]').filter({ hasText: 'Recurring todo' });
+    await expect(card).toBeVisible({ timeout: 10000 });
+    const rruleText = card.locator('[data-testid="rrule-text"]');
+    await expect(rruleText).toBeVisible();
+    await expect(rruleText).toHaveText('Every 2 weeks');
+  });
 });

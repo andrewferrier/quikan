@@ -7,6 +7,7 @@ import {
   updateCard as updateCardStorage,
   moveCard as moveCardStorage,
   deleteCard as deleteCardStorage,
+  formatRruleText,
 } from '../storage/vtodo.js';
 import { Card, Column } from '../types.js';
 
@@ -154,6 +155,7 @@ export const resolvers = {
     isRecurring: (card: Card) => !!(card.rrule || card.isRecurringChild),
     isRecurringChild: (card: Card) => card.isRecurringChild ?? false,
     rrule: (card: Card) => card.rrule ?? null,
+    rruleText: (card: Card) => formatRruleText(card),
     rruleSupported: (card: Card) => card.rruleSupported ?? null,
     rdates: (card: Card) => card.rdates?.map((d) => d.toISOString()) ?? [],
     exdates: (card: Card) => card.exdates?.map((d) => d.toISOString()) ?? [],

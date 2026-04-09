@@ -14,6 +14,7 @@ interface CardType {
   completed?: string | null;
   isRecurring?: boolean | null;
   isRecurringChild?: boolean | null;
+  rruleText?: string | null;
 }
 
 interface ColumnProps {
@@ -85,6 +86,7 @@ const Column: React.FC<ColumnProps> = ({ id, name, cards, hiddenCount, onCardCli
             completed={card.completed}
             isRecurring={card.isRecurring}
             isRecurringChild={card.isRecurringChild}
+            rruleText={card.rruleText}
             onClick={() => onCardClick(card)}
           />
         ))}

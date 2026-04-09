@@ -31,6 +31,7 @@ interface CardType {
   isRecurringChild?: boolean | null;
   recurrenceId?: string | null;
   rrule?: string | null;
+  rruleText?: string | null;
   rruleSupported?: boolean | null;
   rdates?: string[] | null;
   exdates?: string[] | null;

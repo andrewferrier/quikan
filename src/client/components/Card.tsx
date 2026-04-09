@@ -13,6 +13,7 @@ interface CardProps {
   completed?: string | null;
   isRecurring?: boolean | null;
   isRecurringChild?: boolean | null;
+  rruleText?: string | null;
   onClick?: () => void;
 }
 
@@ -79,6 +80,7 @@ const Card: React.FC<CardProps> = ({
   completed,
   isRecurring,
   isRecurringChild,
+  rruleText,
   onClick,
 }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
@@ -151,7 +153,12 @@ const Card: React.FC<CardProps> = ({
         </p>
       )}
       {isRecurring && (
-        <div className="flex justify-end mt-1">
+        <div className="flex justify-end items-center gap-1 mt-1">
+          {rruleText && (
+            <span className="text-xs text-gray-500" data-testid="rrule-text">
+              {rruleText}
+            </span>
+          )}
           <RecurringIcon variant={isRecurringChild ? 'child' : 'master'} />
         </div>
       )}

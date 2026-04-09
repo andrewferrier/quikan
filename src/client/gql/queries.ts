@@ -19,6 +19,7 @@ export const GET_COLUMNS = gql`
         isRecurringChild
         recurrenceId
         rrule
+        rruleText
         rruleSupported
         rdates
         exdates

@@ -14,6 +14,7 @@ export const typeDefs = `#graphql
     isRecurring: Boolean
     isRecurringChild: Boolean
     rrule: String
+    rruleText: String
     rruleSupported: Boolean
     rdates: [String!]!
     exdates: [String!]!

@@ -277,6 +277,149 @@ export function cardToVTODO(card: Card): string {
   return comp.toString();
 }
 
+const FREQ_LABELS: Record<string, [string, string]> = {
+  DAILY: ['day', 'days'],
+  WEEKLY: ['week', 'weeks'],
+  MONTHLY: ['month', 'months'],
+  YEARLY: ['year', 'years'],
+};
+
+const DAY_NAMES: Record<string, string> = {
+  MO: 'Monday',
+  TU: 'Tuesday',
+  WE: 'Wednesday',
+  TH: 'Thursday',
+  FR: 'Friday',
+  SA: 'Saturday',
+  SU: 'Sunday',
+};
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+function ordinal(n: number): string {
+  if (n === -1) return 'last';
+  const abs = Math.abs(n);
+  const suffix =
+    abs % 100 >= 11 && abs % 100 <= 13
+      ? 'th'
+      : abs % 10 === 1
+        ? 'st'
+        : abs % 10 === 2
+          ? 'nd'
+          : abs % 10 === 3
+            ? 'rd'
+            : 'th';
+  return `${n}${suffix}`;
+}
+
+function listJoin(items: string[]): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+}
+
+function parseByDayEntry(entry: string): { pos: number | null; day: string } {
+  const match = entry.match(/^(-?\d+)?([A-Z]{2})$/);
+  if (!match) return { pos: null, day: entry };
+  return { pos: match[1] !== undefined ? parseInt(match[1]) : null, day: match[2] };
+}
+
+function qualifierText(freq: string, parts: Record<string, unknown>): string | null {
+  const byday = parts.BYDAY as string[] | undefined;
+  const bymonthday = parts.BYMONTHDAY as number[] | undefined;
+  const bymonth = parts.BYMONTH as number[] | undefined;
+
+  if (freq === 'WEEKLY' && byday?.length) {
+    return `on ${listJoin(byday.map((d) => DAY_NAMES[d] ?? d))}`;
+  }
+
+  if (freq === 'MONTHLY' && byday?.length) {
+    const texts = byday.map(parseByDayEntry).map(({ pos, day }) => {
+      const name = DAY_NAMES[day] ?? day;
+      return pos !== null ? `the ${ordinal(pos)} ${name}` : name;
+    });
+    return `on ${listJoin(texts)}`;
+  }
+
+  if (freq === 'MONTHLY' && bymonthday?.length) {
+    return `on ${listJoin(bymonthday.map((d) => `the ${ordinal(d)}`))}`;
+  }
+
+  if (freq === 'YEARLY' && bymonth?.length && bymonthday?.length) {
+    const texts = bymonthday.flatMap((day) =>
+      bymonth.map((month) => `${ordinal(day)} ${MONTH_NAMES[month - 1] ?? month}`)
+    );
+    return `on ${listJoin(texts)}`;
+  }
+
+  return null;
+}
+
+/**
+ * Produce a human-readable description of a recurring card's repeat pattern,
+ * e.g. "Every 2 weeks on Monday", "Every month on the 2nd", "Every year on 9th January",
+ * "Every week, until 2026-01-01", "Every week (3 occurrences remaining)".
+ * Returns null for non-recurring cards or on parse errors.
+ */
+export function formatRruleText(card: Card): string | null {
+  if (!card.rrule) return null;
+
+  let recur: typeof ICAL.Recur.prototype;
+  try {
+    recur = ICAL.Recur.fromString(card.rrule);
+  } catch {
+    return null;
+  }
+
+  if (!recur.freq) return null;
+  const freq = recur.freq.toUpperCase();
+  const interval: number = recur.interval ?? 1;
+  const [singular, plural] = FREQ_LABELS[freq] ?? ['occurrence', 'occurrences'];
+  const base = interval === 1 ? `Every ${singular}` : `Every ${interval} ${plural}`;
+
+  const qualifier = qualifierText(freq, recur.parts ?? {});
+  const description = qualifier ? `${base} ${qualifier}` : base;
+
+  if (recur.until) {
+    const untilStr = recur.until.toJSDate().toISOString().slice(0, 10);
+    return `${description}, until ${untilStr}`;
+  }
+
+  if (recur.count && card.dtstart && card.due) {
+    const anchor = dateToIcalTime(card.dtstart, card.dueHasTime);
+    const dueTime = dateToIcalTime(card.due, card.dueHasTime);
+    const iter = recur.iterator(anchor);
+    let seen = 0;
+    for (let i = 0; i < recur.count; i++) {
+      const next = iter.next();
+      if (!next) break;
+      if (next.compare(dueTime) <= 0) seen++;
+      else break;
+    }
+    const remaining = recur.count - seen;
+    if (remaining > 0) {
+      return `${description} (${remaining} occurrence${remaining === 1 ? '' : 's'} remaining)`;
+    }
+    return description;
+  }
+
+  return description;
+}
+
 /**
  * Find the next occurrence in a master card's recurrence set after master.due
  * that has not already been overridden by an existing child.
