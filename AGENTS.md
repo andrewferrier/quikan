@@ -1,8 +1,6 @@
 # Quikan — Development Guide
 
-This file is for AI agents to consume to understand internal details. Whenever
-an AI agent is making a change to quikan, it should always review this file to
-see if it can be improved / needs to be updated.
+This file is for AI agents to consume to understand internal details. Whenever an AI agent is making a change to quikan, it should always review this file to see if it can be improved / needs to be updated.
 
 ## Coding Conventions
 
