@@ -62,6 +62,7 @@ const RecurringIcon: React.FC<{ variant?: 'master' | 'child' }> = ({ variant = '
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-label="Recurring"
+    data-testid="recurring-icon"
   >
     <path d="M13.5 8A5.5 5.5 0 1 1 10 3.2" />
     <polyline points="10 1 10 3.5 12.5 3.5" />

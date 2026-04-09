@@ -13,12 +13,12 @@ export const typeDefs = `#graphql
     completed: String
     isRecurring: Boolean
     isRecurringChild: Boolean
+    quikanRecurrenceId: String
     rrule: String
     rruleText: String
     rruleSupported: Boolean
     rdates: [String!]!
     exdates: [String!]!
-    recurrenceId: String
   }
 
   type Column {
@@ -32,7 +32,7 @@ export const typeDefs = `#graphql
     cards: [Card!]!
     card(id: ID!): Card
     columns: [Column!]!
-    cardChildren(id: ID!): [Card!]!
+    cardClones(id: ID!): [Card!]!
     cardParent(id: ID!): Card
   }
 

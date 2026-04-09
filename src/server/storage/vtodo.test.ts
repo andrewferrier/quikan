@@ -1,4 +1,4 @@
-import { mkdtemp, rm, readFile } from 'fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'fs/promises';
 import { readdirSync } from 'fs';
 import { tmpdir } from 'os';
 import * as nodePath from 'path';
@@ -9,6 +9,7 @@ import {
   updateCard,
   moveCard,
   readCard,
+  readAllCards,
   deleteCard,
   writeCard,
 } from '../storage/vtodo';
@@ -335,20 +336,20 @@ describe('VTODO Storage', () => {
   });
 
   describe('isRecurring', () => {
-    it('sets isRecurringChild to false and rrule to the rule string when RRULE is present', () => {
+    it('sets quikanRecurrenceId to undefined and rrule to the rule string when RRULE is present', () => {
       const card = parseVTODO(
         makeICS('test-recurring', ['RRULE:FREQ=WEEKLY;BYDAY=MO']),
         'test-recurring.ics'
       );
       expect(card.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');
       expect(card.rruleSupported).toBe(true);
-      expect(card.isRecurringChild).toBe(false);
+      expect(card.quikanRecurrenceId).toBeUndefined();
     });
 
-    it('leaves rrule undefined when no RRULE is present', () => {
+    it('leaves rrule and quikanRecurrenceId undefined when no recurrence present', () => {
       const card = parseVTODO(makeICS('test-not-recurring'), 'test-not-recurring.ics');
       expect(card.rrule).toBeUndefined();
-      expect(card.isRecurringChild).toBe(false);
+      expect(card.quikanRecurrenceId).toBeUndefined();
     });
   });
 
@@ -631,9 +632,9 @@ describe('VTODO Storage', () => {
 
 import {
   computeNextOccurrence,
-  createChildOverride,
-  readChildrenOf,
-  readMasterOf,
+  createCompletedClone,
+  readClonesOf,
+  readParentOf,
   formatRruleText,
 } from '../storage/vtodo';
 
@@ -660,20 +661,20 @@ describe('uid handling', () => {
 
   it('round-trips uid through parse and serialize', () => {
     const card: Card = {
-      id: 'child-file',
-      uid: 'master-uid',
-      summary: 'Child card',
+      id: 'clone-file',
+      uid: 'clone-file',
+      summary: 'Completed clone',
       column: 'done',
       created: new Date('2026-01-01T00:00:00Z'),
       modified: new Date('2026-01-01T00:00:00Z'),
       completed: new Date('2026-04-01T00:00:00Z'),
-      recurrenceId: new Date('2026-04-01T00:00:00.000Z'),
-      isRecurringChild: true,
+      quikanRecurrenceId: 'master-uid',
     };
     const ics = cardToVTODO(card);
-    const parsed = parseVTODO(ics, 'child-file.ics');
-    expect(parsed.uid).toBe('master-uid');
-    expect(parsed.id).toBe('child-file');
+    const parsed = parseVTODO(ics, 'clone-file.ics');
+    expect(parsed.uid).toBe('clone-file');
+    expect(parsed.id).toBe('clone-file');
+    expect(parsed.quikanRecurrenceId).toBe('master-uid');
   });
 });
 
@@ -764,75 +765,144 @@ describe('RRULE parsing and writing', () => {
   });
 });
 
-describe('RECURRENCE-ID parsing and writing', () => {
-  it('parses RECURRENCE-ID as a date', () => {
+describe('RECURRENCE-ID validation (rejection)', () => {
+  it('throws when RECURRENCE-ID property is present', () => {
+    expect(() =>
+      parseVTODO(
+        makeICS('child-1', [
+          'RECURRENCE-ID;VALUE=DATE:20260401',
+          'STATUS:COMPLETED',
+          'DTSTART;VALUE=DATE:20260401',
+        ]),
+        'child-file.ics'
+      )
+    ).toThrow(/RECURRENCE-ID/);
+  });
+
+  it('throws when RECURRENCE-ID is a datetime', () => {
+    expect(() =>
+      parseVTODO(
+        makeICS('child-2', ['RECURRENCE-ID:20260401T100000Z', 'DTSTART:20260401T100000Z']),
+        'child-file.ics'
+      )
+    ).toThrow(/RECURRENCE-ID/);
+  });
+
+  it('error message includes the filename', () => {
+    expect(() =>
+      parseVTODO(makeICS('child-3', ['RECURRENCE-ID;VALUE=DATE:20260401']), 'my-bad-file.ics')
+    ).toThrow(/my-bad-file\.ics/);
+  });
+
+  it('does not throw when no RECURRENCE-ID is present', () => {
+    expect(() => parseVTODO(makeICS('master-1'), 'master-1.ics')).not.toThrow();
+  });
+});
+
+describe('multiple VCALENDAR/VTODO validation (rejection)', () => {
+  it('throws when there are multiple VTODO components', () => {
+    const raw = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Test//EN',
+      'BEGIN:VTODO',
+      'UID:todo-1',
+      'SUMMARY:First',
+      'END:VTODO',
+      'BEGIN:VTODO',
+      'UID:todo-2',
+      'SUMMARY:Second',
+      'END:VTODO',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    expect(() => parseVTODO(raw, 'multi-vtodo.ics')).toThrow(/multiple VTODO/);
+  });
+
+  it('error message includes the filename for multiple VTODO', () => {
+    const raw = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Test//EN',
+      'BEGIN:VTODO',
+      'UID:todo-1',
+      'SUMMARY:First',
+      'END:VTODO',
+      'BEGIN:VTODO',
+      'UID:todo-2',
+      'SUMMARY:Second',
+      'END:VTODO',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    expect(() => parseVTODO(raw, 'bad-multi.ics')).toThrow(/bad-multi\.ics/);
+  });
+});
+
+describe('X-QUIKAN-RECURRENCE-ID parsing and writing', () => {
+  it('parses X-QUIKAN-RECURRENCE-ID into quikanRecurrenceId', () => {
     const card = parseVTODO(
-      makeICS('child-1', [
-        'RECURRENCE-ID;VALUE=DATE:20260401',
+      makeICS('clone-1', [
         'STATUS:COMPLETED',
-        'DTSTART;VALUE=DATE:20260401',
+        'COMPLETED:20260401T100000Z',
+        'X-QUIKAN-RECURRENCE-ID:master-uid-abc',
       ]),
-      'child-file.ics'
+      'clone-1.ics'
     );
-    expect(card.recurrenceId).toBeInstanceOf(Date);
-    expect(card.recurrenceId!.toISOString()).toBe('2026-04-01T00:00:00.000Z');
-    expect(card.isRecurringChild).toBe(true);
+    expect(card.quikanRecurrenceId).toBe('master-uid-abc');
   });
 
-  it('parses RECURRENCE-ID as a datetime', () => {
-    const card = parseVTODO(
-      makeICS('child-2', ['RECURRENCE-ID:20260401T100000Z', 'DTSTART:20260401T100000Z']),
-      'child-file.ics'
-    );
-    expect(card.recurrenceId!.toISOString()).toBe('2026-04-01T10:00:00.000Z');
-    expect(card.isRecurringChild).toBe(true);
+  it('leaves quikanRecurrenceId undefined when not present', () => {
+    const card = parseVTODO(makeICS('regular-1'), 'regular-1.ics');
+    expect(card.quikanRecurrenceId).toBeUndefined();
   });
 
-  it('leaves recurrenceId undefined when not present', () => {
-    const card = parseVTODO(makeICS('master-1'), 'master-1.ics');
-    expect(card.recurrenceId).toBeUndefined();
-    expect(card.isRecurringChild).toBe(false);
-  });
-
-  it('writes RECURRENCE-ID for child cards', () => {
+  it('writes X-QUIKAN-RECURRENCE-ID when quikanRecurrenceId is set', () => {
     const card: Card = {
-      id: 'child-file',
-      uid: 'master-uid',
-      summary: 'Override',
-      column: 'done',
-      created: new Date('2026-01-01T00:00:00Z'),
-      modified: new Date('2026-01-01T00:00:00Z'),
-      completed: new Date('2026-04-01T10:00:00Z'),
-      due: new Date('2026-04-01T00:00:00.000Z'),
-      dueHasTime: false,
-      dtstart: new Date('2026-04-01T00:00:00.000Z'),
-      recurrenceId: new Date('2026-04-01T00:00:00.000Z'),
-      isRecurringChild: true,
-    };
-    const ics = cardToVTODO(card);
-    expect(ics).toContain('RECURRENCE-ID');
-    expect(ics).toContain('20260401');
-  });
-
-  it('round-trips RECURRENCE-ID through serialize and parse', () => {
-    const card: Card = {
-      id: 'child-roundtrip',
-      uid: 'master-roundtrip',
-      summary: 'Child',
+      id: 'clone-file',
+      uid: 'clone-file',
+      summary: 'Completed clone',
       column: 'done',
       created: new Date('2026-01-01T00:00:00Z'),
       modified: new Date('2026-04-01T00:00:00Z'),
       completed: new Date('2026-04-01T00:00:00Z'),
       due: new Date('2026-04-01T00:00:00.000Z'),
       dueHasTime: false,
-      dtstart: new Date('2026-04-01T00:00:00.000Z'),
-      recurrenceId: new Date('2026-04-01T00:00:00.000Z'),
-      isRecurringChild: true,
+      quikanRecurrenceId: 'master-uid-xyz',
     };
-    const parsed = parseVTODO(cardToVTODO(card), 'child-roundtrip.ics');
-    expect(parsed.recurrenceId!.toISOString()).toBe('2026-04-01T00:00:00.000Z');
-    expect(parsed.isRecurringChild).toBe(true);
-    expect(parsed.uid).toBe('master-roundtrip');
+    const ics = cardToVTODO(card);
+    expect(ics).toContain('X-QUIKAN-RECURRENCE-ID:master-uid-xyz');
+    expect(ics).not.toMatch(/^RECURRENCE-ID[;:]/m);
+  });
+
+  it('does not write X-QUIKAN-RECURRENCE-ID when quikanRecurrenceId is absent', () => {
+    const card: Card = {
+      id: 'regular',
+      uid: 'regular',
+      summary: 'Regular task',
+      column: 'todo',
+      created: new Date('2026-01-01T00:00:00Z'),
+      modified: new Date('2026-01-01T00:00:00Z'),
+    };
+    const ics = cardToVTODO(card);
+    expect(ics).not.toContain('X-QUIKAN-RECURRENCE-ID');
+    expect(ics).not.toMatch(/^RECURRENCE-ID[;:]/m);
+  });
+
+  it('round-trips X-QUIKAN-RECURRENCE-ID through serialize and parse', () => {
+    const card: Card = {
+      id: 'clone-roundtrip',
+      uid: 'clone-roundtrip',
+      summary: 'Clone',
+      column: 'done',
+      created: new Date('2026-01-01T00:00:00Z'),
+      modified: new Date('2026-04-01T00:00:00Z'),
+      completed: new Date('2026-04-01T00:00:00Z'),
+      due: new Date('2026-04-01T00:00:00.000Z'),
+      dueHasTime: false,
+      quikanRecurrenceId: 'master-roundtrip',
+    };
+    const parsed = parseVTODO(cardToVTODO(card), 'clone-roundtrip.ics');
+    expect(parsed.quikanRecurrenceId).toBe('master-roundtrip');
+    expect(parsed.uid).toBe('clone-roundtrip');
   });
 });
 
@@ -922,19 +992,19 @@ describe('computeNextOccurrence', () => {
     expect(next).toBeNull();
   });
 
-  it('skips dates that are already overridden by existing children', () => {
-    const jan12Child: Card = {
-      id: 'child-jan12',
-      uid: 'master',
-      summary: 'Override',
+  it('skips dates that are already covered by existing completed clones', () => {
+    const jan12Clone: Card = {
+      id: 'clone-jan12',
+      uid: 'clone-jan12',
+      summary: 'Completed instance',
       column: 'done',
       created: new Date('2026-01-05T00:00:00.000Z'),
       modified: new Date('2026-01-12T00:00:00.000Z'),
-      recurrenceId: new Date('2026-01-12T00:00:00.000Z'),
-      isRecurringChild: true,
+      due: new Date('2026-01-12T00:00:00.000Z'),
+      quikanRecurrenceId: 'master',
     };
-    // Next should skip Jan 12 (already overridden) and return Jan 19
-    const next = computeNextOccurrence(masterBase, [jan12Child]);
+    // Next should skip Jan 12 (already cloned) and return Jan 19
+    const next = computeNextOccurrence(masterBase, [jan12Clone]);
     expect(next!.toISOString()).toBe('2026-01-19T00:00:00.000Z');
   });
 
@@ -949,31 +1019,33 @@ describe('computeNextOccurrence', () => {
   });
 
   it('advances through multiple already-covered occurrences', () => {
-    const children: Card[] = [
+    const clones: Card[] = [
       {
         ...masterBase,
         id: 'c1',
-        recurrenceId: new Date('2026-01-12T00:00:00.000Z'),
-        isRecurringChild: true,
+        uid: 'c1',
+        due: new Date('2026-01-12T00:00:00.000Z'),
+        quikanRecurrenceId: 'master',
       },
       {
         ...masterBase,
         id: 'c2',
-        recurrenceId: new Date('2026-01-19T00:00:00.000Z'),
-        isRecurringChild: true,
+        uid: 'c2',
+        due: new Date('2026-01-19T00:00:00.000Z'),
+        quikanRecurrenceId: 'master',
       },
     ];
-    const next = computeNextOccurrence(masterBase, children);
+    const next = computeNextOccurrence(masterBase, clones);
     expect(next!.toISOString()).toBe('2026-01-26T00:00:00.000Z');
   });
 });
 
-describe('createChildOverride', () => {
+describe('createCompletedClone', () => {
   let tempDir: string;
   const savedDataDir = process.env.QUIKAN_DATA;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(nodePath.join(tmpdir(), 'quikan-child-'));
+    tempDir = await mkdtemp(nodePath.join(tmpdir(), 'quikan-clone-'));
     process.env.QUIKAN_DATA = tempDir;
   });
 
@@ -986,7 +1058,7 @@ describe('createChildOverride', () => {
     }
   });
 
-  it('creates a child with a new id, master uid, and recurrenceId = master.due', async () => {
+  it('creates a clone with a new id AND new uid (not master uid)', async () => {
     const master = await createCard(
       'Weekly task',
       'todo',
@@ -996,18 +1068,17 @@ describe('createChildOverride', () => {
       undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
-    const child = await createChildOverride(master, 'done');
+    const clone = await createCompletedClone(master, 'done');
 
-    expect(child.id).not.toBe(master.id);
-    expect(child.uid).toBe(master.uid);
-    expect(child.isRecurringChild).toBe(true);
-    expect(child.recurrenceId!.toISOString()).toBe('2026-04-07T00:00:00.000Z');
-    expect(child.due!.toISOString()).toBe('2026-04-07T00:00:00.000Z');
-    expect(child.column).toBe('done');
-    expect(child.completed).toBeInstanceOf(Date);
+    expect(clone.id).not.toBe(master.id);
+    expect(clone.uid).not.toBe(master.uid);
+    expect(clone.quikanRecurrenceId).toBe(master.uid);
+    expect(clone.due!.toISOString()).toBe('2026-04-07T00:00:00.000Z');
+    expect(clone.column).toBe('done');
+    expect(clone.completed).toBeInstanceOf(Date);
   });
 
-  it('child created for in-progress target is not completed', async () => {
+  it('clone created for in-progress target is not completed', async () => {
     const master = await createCard(
       'Weekly task',
       'todo',
@@ -1017,13 +1088,13 @@ describe('createChildOverride', () => {
       undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
-    const child = await createChildOverride(master, 'in-progress');
+    const clone = await createCompletedClone(master, 'in-progress');
 
-    expect(child.column).toBe('in-progress');
-    expect(child.completed).toBeUndefined();
+    expect(clone.column).toBe('in-progress');
+    expect(clone.completed).toBeUndefined();
   });
 
-  it('child is persisted to disk', async () => {
+  it('clone is persisted to disk with correct fields', async () => {
     const master = await createCard(
       'Weekly task',
       'todo',
@@ -1033,12 +1104,13 @@ describe('createChildOverride', () => {
       undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
-    const child = await createChildOverride(master, 'done');
+    const clone = await createCompletedClone(master, 'done');
 
-    const read = await readCard(child.id);
+    const read = await readCard(clone.id);
     expect(read).not.toBeNull();
-    expect(read!.uid).toBe(master.uid);
-    expect(read!.isRecurringChild).toBe(true);
+    expect(read!.uid).toBe(clone.uid);
+    expect(read!.uid).not.toBe(master.uid);
+    expect(read!.quikanRecurrenceId).toBe(master.uid);
   });
 });
 
@@ -1060,7 +1132,7 @@ describe('moveCard for recurring masters', () => {
     }
   });
 
-  it('creates a child and advances master DUE when moved to done', async () => {
+  it('creates a completed clone and advances master DUE when moved to done', async () => {
     const master = await createCard(
       'Weekly standup',
       'todo',
@@ -1073,11 +1145,11 @@ describe('moveCard for recurring masters', () => {
 
     const result = await moveCard(master.id, 'done');
 
-    // Returns the child card in the target column
+    // Returns the clone in the target column
     expect(result).not.toBeNull();
-    expect(result!.isRecurringChild).toBe(true);
+    expect(result!.quikanRecurrenceId).toBe(master.uid);
+    expect(result!.uid).not.toBe(master.uid);
     expect(result!.column).toBe('done');
-    expect(result!.uid).toBe(master.uid);
 
     // Master should still exist with an advanced DUE
     const updatedMaster = await readCard(master.id);
@@ -1085,7 +1157,7 @@ describe('moveCard for recurring masters', () => {
     expect(updatedMaster!.due!.toISOString()).toBe('2026-04-13T00:00:00.000Z'); // next Monday
   });
 
-  it('creates a child in in-progress and advances master DUE', async () => {
+  it('creates a clone in in-progress and advances master DUE', async () => {
     const master = await createCard(
       'Weekly standup',
       'todo',
@@ -1098,14 +1170,14 @@ describe('moveCard for recurring masters', () => {
 
     const result = await moveCard(master.id, 'in-progress');
     expect(result!.column).toBe('in-progress');
-    expect(result!.isRecurringChild).toBe(true);
+    expect(result!.quikanRecurrenceId).toBe(master.uid);
 
     const updatedMaster = await readCard(master.id);
     expect(updatedMaster!.column).toBe('todo');
     expect(updatedMaster!.due!.toISOString()).toBe('2026-04-13T00:00:00.000Z');
   });
 
-  it('moves a child card normally (no child-of-child)', async () => {
+  it('moves a clone card normally (no clone-of-clone)', async () => {
     const master = await createCard(
       'Weekly standup',
       'todo',
@@ -1116,19 +1188,19 @@ describe('moveCard for recurring masters', () => {
       'FREQ=WEEKLY;BYDAY=MO'
     );
 
-    // Trigger master → child creation via moveCard (also advances master DUE)
-    const child = await moveCard(master.id, 'in-progress');
-    expect(child!.isRecurringChild).toBe(true);
+    // Trigger master → clone creation via moveCard (also advances master DUE)
+    const clone = await moveCard(master.id, 'in-progress');
+    expect(clone!.quikanRecurrenceId).toBe(master.uid);
 
     const masterAfterFirst = await readCard(master.id);
     expect(masterAfterFirst!.due!.toISOString()).toBe('2026-04-13T00:00:00.000Z');
 
-    // Now move the child itself — no child-of-child should be created
-    const moved = await moveCard(child!.id, 'done');
-    expect(moved!.isRecurringChild).toBe(true);
+    // Now move the clone itself — no clone-of-clone should be created
+    const moved = await moveCard(clone!.id, 'done');
+    expect(moved!.quikanRecurrenceId).toBe(master.uid);
     expect(moved!.column).toBe('done');
 
-    // Master DUE unchanged — only the child was moved
+    // Master DUE unchanged — only the clone was moved
     const updatedMaster = await readCard(master.id);
     expect(updatedMaster!.due!.toISOString()).toBe('2026-04-13T00:00:00.000Z');
   });
@@ -1152,32 +1224,32 @@ describe('moveCard for recurring masters', () => {
     expect(updatedMaster!.column).toBe('done');
   });
 
-  it('non-recurring card is moved normally (no child created)', async () => {
+  it('non-recurring card is moved normally (no clone created)', async () => {
     const plain = await createCard('Plain task', 'todo');
     const result = await moveCard(plain.id, 'done');
 
     expect(result!.id).toBe(plain.id);
     expect(result!.column).toBe('done');
-    expect(result!.isRecurringChild).toBeFalsy();
+    expect(result!.quikanRecurrenceId).toBeFalsy();
 
     // No extra card files created
     const files = readdirSync(tempDir).filter((f: string) => f.endsWith('.ics'));
     expect(files).toHaveLength(1);
   });
 
-  it('unsupported RRULE causes master to move normally (no child created)', async () => {
+  it('unsupported RRULE causes master to move normally (no clone created)', async () => {
     // Create master with unsupported RRULE manually
     const master = await createCard('Hourly task', 'todo');
     // Patch in an unsupported rrule by directly updating the card object
     await writeCard({ ...master, rrule: 'FREQ=HOURLY', rruleSupported: false });
 
     const result = await moveCard(master.id, 'done');
-    expect(result!.id).toBe(master.id); // master itself moved, no child
-    expect(result!.isRecurringChild).toBeFalsy();
+    expect(result!.id).toBe(master.id); // master itself moved, no clone
+    expect(result!.quikanRecurrenceId).toBeFalsy();
   });
 });
 
-describe('readChildrenOf and readMasterOf', () => {
+describe('readClonesOf and readParentOf', () => {
   let tempDir: string;
   const savedDataDir = process.env.QUIKAN_DATA;
 
@@ -1195,7 +1267,7 @@ describe('readChildrenOf and readMasterOf', () => {
     }
   });
 
-  it('readChildrenOf returns children with matching uid', async () => {
+  it('readClonesOf returns clones with matching quikanRecurrenceId', async () => {
     const master = await createCard(
       'Weekly',
       'todo',
@@ -1205,23 +1277,24 @@ describe('readChildrenOf and readMasterOf', () => {
       undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
-    await createChildOverride(master, 'done');
-    await createChildOverride(master, 'done');
+    await createCompletedClone(master, 'done');
+    await createCompletedClone(master, 'done');
     // Also create an unrelated card
     await createCard('Unrelated', 'todo');
 
-    const children = await readChildrenOf(master.uid);
-    expect(children).toHaveLength(2);
-    expect(children.every((c) => c.uid === master.uid && c.isRecurringChild)).toBe(true);
+    const clones = await readClonesOf(master.uid);
+    expect(clones).toHaveLength(2);
+    expect(clones.every((c) => c.quikanRecurrenceId === master.uid)).toBe(true);
+    expect(clones.every((c) => c.uid !== master.uid)).toBe(true);
   });
 
-  it('readChildrenOf returns empty array when no children exist', async () => {
+  it('readClonesOf returns empty array when no clones exist', async () => {
     const master = await createCard('Solo task', 'todo');
-    const children = await readChildrenOf(master.uid);
-    expect(children).toHaveLength(0);
+    const clones = await readClonesOf(master.uid);
+    expect(clones).toHaveLength(0);
   });
 
-  it('readMasterOf returns the master (card without recurrenceId)', async () => {
+  it('readParentOf returns the master (card without quikanRecurrenceId, matching uid)', async () => {
     const master = await createCard(
       'Weekly',
       'todo',
@@ -1231,16 +1304,16 @@ describe('readChildrenOf and readMasterOf', () => {
       undefined,
       'FREQ=WEEKLY;BYDAY=MO'
     );
-    await createChildOverride(master, 'done');
+    await createCompletedClone(master, 'done');
 
-    const found = await readMasterOf(master.uid);
+    const found = await readParentOf(master.uid);
     expect(found).not.toBeNull();
     expect(found!.id).toBe(master.id);
-    expect(found!.isRecurringChild).toBe(false);
+    expect(found!.quikanRecurrenceId).toBeUndefined();
   });
 
-  it('readMasterOf returns null when no master exists for uid', async () => {
-    expect(await readMasterOf('non-existent-uid')).toBeNull();
+  it('readParentOf returns null when no master exists for uid', async () => {
+    expect(await readParentOf('non-existent-uid')).toBeNull();
   });
 });
 
@@ -1436,5 +1509,76 @@ describe('formatRruleText', () => {
     expect(formatRruleText({ ...base, rrule: 'FREQ=WEEKLY;BYDAY=MO;UNTIL=20260601T000000Z' })).toBe(
       'Every week on Monday, until 2026-06-01'
     );
+  });
+});
+
+describe('readAllCards validation', () => {
+  let tempDir: string;
+  const savedDataDir = process.env.QUIKAN_DATA;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(nodePath.join(tmpdir(), 'quikan-validate-'));
+    process.env.QUIKAN_DATA = tempDir;
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+    if (savedDataDir !== undefined) {
+      process.env.QUIKAN_DATA = savedDataDir;
+    } else {
+      delete process.env.QUIKAN_DATA;
+    }
+  });
+
+  it('returns all cards when all files are valid', async () => {
+    await createCard('Task A', 'todo');
+    await createCard('Task B', 'in-progress');
+    const cards = await readAllCards();
+    expect(cards).toHaveLength(2);
+  });
+
+  it('throws when a file contains RECURRENCE-ID', async () => {
+    await createCard('Normal task', 'todo');
+    const badIcs = makeICS('bad-1', ['RECURRENCE-ID;VALUE=DATE:20260401', 'STATUS:COMPLETED']);
+    await writeFile(nodePath.join(tempDir, 'bad-1.ics'), badIcs, 'utf-8');
+
+    await expect(readAllCards()).rejects.toThrow(/RECURRENCE-ID/);
+  });
+
+  it('throws an aggregated error listing all bad filenames', async () => {
+    const bad1 = makeICS('bad-a', ['RECURRENCE-ID;VALUE=DATE:20260401']);
+    const bad2 = makeICS('bad-b', ['RECURRENCE-ID;VALUE=DATE:20260402']);
+    await writeFile(nodePath.join(tempDir, 'bad-a.ics'), bad1, 'utf-8');
+    await writeFile(nodePath.join(tempDir, 'bad-b.ics'), bad2, 'utf-8');
+
+    let error: Error | null = null;
+    try {
+      await readAllCards();
+    } catch (e) {
+      error = e as Error;
+    }
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain('bad-a.ics');
+    expect(error!.message).toContain('bad-b.ics');
+  });
+
+  it('throws when a file contains multiple VTODO components', async () => {
+    const badIcs = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Test//EN',
+      'BEGIN:VTODO',
+      'UID:todo-1',
+      'SUMMARY:First',
+      'END:VTODO',
+      'BEGIN:VTODO',
+      'UID:todo-2',
+      'SUMMARY:Second',
+      'END:VTODO',
+      'END:VCALENDAR',
+    ].join('\r\n');
+    await writeFile(nodePath.join(tempDir, 'multi-vtodo.ics'), badIcs, 'utf-8');
+
+    await expect(readAllCards()).rejects.toThrow(/multiple VTODO/);
   });
 });

@@ -6,9 +6,17 @@ A web-based Kanban board that uses VTODO (iCalendar) files as a backend.
 
 - **VTODO Backend**: Each card is stored as a separate .ics file using the VTODO format
 - **Drag & Drop**: Intuitive drag and drop interface to move cards between columns
+- **Recurring Tasks**: Supports recurring tasks with full RFC 5545 RRULE syntax
 - **GraphQL API**: Apollo Server-based GraphQL API for efficient data fetching
 - **Modern Frontend**: React with TypeScript and TailwindCSS
 - **Dockerized**: Ready to deploy with Docker and docker-compose
+- **vdirsyncer / CalDAV Compatible**: Data directory can be synced with CalDAV servers using tools like vdirsyncer
+
+## Recurring Tasks & Compatibility
+
+Quikan stores recurring tasks using a **standalone clone** model compatible with `vdirsyncer`, `todoman`, and Apple iOS. When you complete a recurring task, Quikan creates an independent completed copy with a new UID and advances the master to its next occurrence - it does not use RFC 5545's `RECURRENCE-ID` parent/child mechanism, which is poorly supported by sync tools.
+
+**Important:** If your data directory contains any `.ics` files with a `RECURRENCE-ID` property (e.g. synced from another app that uses the parent/child model), Quikan will display an error and refuse to load until those files are removed or migrated. Each `.ics` file must also contain exactly one `VTODO` component.
 
 ## Quick Start
 
@@ -61,10 +69,10 @@ This will start both the backend server and the frontend development server. The
 
 ## Configuration
 
-| Variable | Default | Description |
-|---|---|---|
+| Variable      | Default                      | Description                                              |
+| ------------- | ---------------------------- | -------------------------------------------------------- |
 | `QUIKAN_DATA` | `data/` (next to the server) | Path to the directory where `.ics` card files are stored |
-| `PORT` | `4000` | Port the server listens on |
+| `PORT`        | `4000`                       | Port the server listens on                               |
 
 ## Author
 

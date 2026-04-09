@@ -18,10 +18,12 @@ export interface Card {
   rruleSupported?: boolean;
   rdates?: Date[];
   exdates?: Date[];
-  /** The DUE date of the recurrence instance this card overrides. Present on child cards only. */
-  recurrenceId?: Date;
-  /** True when this card is a child override of a recurring master. */
-  isRecurringChild?: boolean;
+  /**
+   * UID of the master recurring card this card was cloned from on completion.
+   * Written as X-QUIKAN-RECURRENCE-ID in the .ics file.
+   * Present only on Quikan-completed clones; absent on clones made by external tools.
+   */
+  quikanRecurrenceId?: string;
 }
 
 export interface Column {

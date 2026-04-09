@@ -58,7 +58,13 @@ test.describe('card display', () => {
 
   test('recurring card shows repeat pattern text to the left of the repeat icon', async ({ page }) => {
     await page.goto('/');
-    const card = page.locator('[data-testid="card"]').filter({ hasText: 'Recurring todo' });
+    const card = page
+      .locator('[data-testid="card"]')
+      .filter({
+        has: page
+          .locator('[data-testid="card-summary"]')
+          .filter({ hasText: /^Recurring todo$/ }),
+      });
     await expect(card).toBeVisible({ timeout: 10000 });
     const rruleText = card.locator('[data-testid="rrule-text"]');
     await expect(rruleText).toBeVisible();

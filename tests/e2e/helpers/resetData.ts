@@ -69,6 +69,16 @@ export function resetData(): void {
     writeDynamic(uid, makeCard(uid, summary, [`DUE;VALUE=DATE:${due}`]));
   }
 
+  // Recurring card due today (for recurring completion tests)
+  writeDynamic(
+    'seed-recurring-today',
+    makeCard('seed-recurring-today', 'Weekly recurring todo', [
+      `DTSTART;VALUE=DATE:${formatUtcDate(utcDateOffset(0))}`,
+      `DUE;VALUE=DATE:${formatUtcDate(utcDateOffset(0))}`,
+      'RRULE:FREQ=WEEKLY',
+    ])
+  );
+
   // Recent done card (visible in Done column)
   const todayStr = formatUtcDate(utcDateOffset(0));
   writeDynamic(

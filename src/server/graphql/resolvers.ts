@@ -1,8 +1,8 @@
 import {
   readAllCards,
   readCard,
-  readChildrenOf,
-  readMasterOf,
+  readClonesOf,
+  readParentOf,
   createCard as createCardStorage,
   updateCard as updateCardStorage,
   moveCard as moveCardStorage,
@@ -152,14 +152,14 @@ export const resolvers = {
     dueHasTime: (card: Card) => card.dueHasTime ?? null,
     completed: (card: Card) => card.completed?.toISOString() ?? null,
     priority: (card: Card) => card.priority ?? null,
-    isRecurring: (card: Card) => !!(card.rrule || card.isRecurringChild),
-    isRecurringChild: (card: Card) => card.isRecurringChild ?? false,
+    isRecurring: (card: Card) => !!(card.rrule || card.quikanRecurrenceId),
+    isRecurringChild: (card: Card) => !!card.quikanRecurrenceId,
+    quikanRecurrenceId: (card: Card) => card.quikanRecurrenceId ?? null,
     rrule: (card: Card) => card.rrule ?? null,
     rruleText: (card: Card) => formatRruleText(card),
     rruleSupported: (card: Card) => card.rruleSupported ?? null,
     rdates: (card: Card) => card.rdates?.map((d) => d.toISOString()) ?? [],
     exdates: (card: Card) => card.exdates?.map((d) => d.toISOString()) ?? [],
-    recurrenceId: (card: Card) => card.recurrenceId?.toISOString() ?? null,
     uid: (card: Card) => card.uid,
   },
 
@@ -203,19 +203,16 @@ export const resolvers = {
       ];
     },
 
-    cardChildren: async (_: unknown, { id }: { id: string }): Promise<Card[]> => {
+    cardClones: async (_: unknown, { id }: { id: string }): Promise<Card[]> => {
       const card = await readCard(id);
       if (!card) return [];
-      return await readChildrenOf(card.uid);
+      return await readClonesOf(card.uid);
     },
 
     cardParent: async (_: unknown, { id }: { id: string }): Promise<Card | null> => {
       const card = await readCard(id);
-      if (!card?.isRecurringChild) return null;
-      // readMasterOf finds the card with matching uid but no recurrenceId
-      const master = await readMasterOf(card.uid);
-      // Don't return the card itself as its own parent
-      return master?.id !== card.id ? (master ?? null) : null;
+      if (!card?.quikanRecurrenceId) return null;
+      return await readParentOf(card.quikanRecurrenceId);
     },
   },
 

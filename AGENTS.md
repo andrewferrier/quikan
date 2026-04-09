@@ -28,11 +28,30 @@ Tasks should always be referred to as 'tasks' for the UI, even though the UI ele
 
 ## VTODO Storage Format
 
-Each card is a `.ics` file. Custom property:
+Each card is a `.ics` file. Custom properties:
 
 - `X-QUIKAN-COLUMN` — which column the card belongs to (e.g. `todo`, `in-progress`). Not written for cards in the `done` column.
+- `X-QUIKAN-RECURRENCE-ID` — links a completed clone back to the master recurring task's UID. Written by Quikan when completing a recurring task; not present in tasks completed by external tools.
 
 Standard properties used: `SUMMARY`, `UID`, `CREATED`, `LAST-MODIFIED`, `STATUS` (`COMPLETED` for done cards, `NEEDS-ACTION` otherwise), `DUE`.
+
+## Recurring Task Model
+
+Quikan uses a **standalone clone** model for recurring tasks, designed to be compatible with vdirsyncer, todoman, and Apple iOS:
+
+- Each task is stored in its own `.ics` file with a unique `UID`.
+- When completing a recurring task, Quikan creates a **new standalone `.ics` file** with a **new UID**, `STATUS=COMPLETED`, and `X-QUIKAN-RECURRENCE-ID` pointing to the master task's `UID`. The master advances to its next occurrence.
+- The RFC 5545 `RECURRENCE-ID` property is **never written** by Quikan.
+- Tasks completed by external tools (todoman, iOS) work as-is — they will be plain completed cards without `X-QUIKAN-RECURRENCE-ID`.
+
+### Validation / Safety Guard
+
+Quikan will **refuse to load** and display a full-page error if any `.ics` file in the data directory:
+
+- Contains a `RECURRENCE-ID` property (old RFC 5545 parent/child format — incompatible with the current model)
+- Contains more than one `VCALENDAR` or `VTODO` component
+
+If you have `.ics` files with `RECURRENCE-ID` from a previous version or an external tool, remove or migrate them before Quikan will load.
 
 ## Todo Virtual Columns
 

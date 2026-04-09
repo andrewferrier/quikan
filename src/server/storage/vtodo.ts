@@ -72,15 +72,35 @@ function dateToIcalTime(d: Date, hasTime: boolean | undefined): typeof ICAL.Time
 export function parseVTODO(icsContent: string, filename: string): Card {
   const jcalData = ICAL.parse(icsContent);
   const comp = new ICAL.Component(jcalData);
-  const vtodo = comp.getFirstSubcomponent('vtodo');
 
+  const allVcalendars = comp.name === 'vcalendar' ? [comp] : comp.getAllSubcomponents('vcalendar');
+  if (allVcalendars.length > 1) {
+    throw new Error(
+      `${filename}: contains multiple VCALENDAR components. Each file must contain exactly one.`
+    );
+  }
+
+  const vtodos = comp.getAllSubcomponents('vtodo');
+  if (vtodos.length > 1) {
+    throw new Error(
+      `${filename}: contains multiple VTODO components. Each file must contain exactly one.`
+    );
+  }
+
+  const vtodo = comp.getFirstSubcomponent('vtodo');
   if (!vtodo) {
-    throw new Error('No VTODO component found');
+    throw new Error(`${filename}: no VTODO component found`);
+  }
+
+  if (vtodo.getFirstProperty('recurrence-id')) {
+    throw new Error(
+      `${filename}: contains a RECURRENCE-ID property. This format is not supported by Quikan. ` +
+        `Please remove this file or migrate it to a standalone VTODO.`
+    );
   }
 
   const id = filename.replace('.ics', '');
 
-  // UID property (may differ from filename for child overrides)
   const uidProp = vtodo.getFirstProperty('uid');
   const uid = uidProp ? (uidProp.getFirstValue() as string) || id : id;
 
@@ -89,7 +109,6 @@ export function parseVTODO(icsContent: string, filename: string): Card {
   const created = vtodo.getFirstPropertyValue('created') || new Date();
   const modified = vtodo.getFirstPropertyValue('last-modified') || new Date();
 
-  // Column from STATUS (authoritative), falling back to X-QUIKAN-COLUMN then 'todo'
   const statusProp = vtodo.getFirstProperty('status');
   const statusVal = statusProp
     ? ((statusProp.getFirstValue() as string | null)?.toUpperCase() ?? null)
@@ -156,11 +175,14 @@ export function parseVTODO(icsContent: string, filename: string): Card {
     rruleSupported = isRruleSupported(recur);
   }
 
-  // RECURRENCE-ID
-  let recurrenceId: Date | undefined;
-  const recurrenceIdProp = vtodo.getFirstProperty('recurrence-id');
-  if (recurrenceIdProp) {
-    recurrenceId = icalTimeToDate(recurrenceIdProp.getFirstValue() as typeof ICAL.Time.prototype);
+  // X-QUIKAN-RECURRENCE-ID — links a completed clone back to its master recurring card
+  let quikanRecurrenceId: string | undefined;
+  const quikanRecurrenceIdProp = vtodo.getFirstProperty('x-quikan-recurrence-id');
+  if (quikanRecurrenceIdProp) {
+    const val = quikanRecurrenceIdProp.getFirstValue();
+    if (typeof val === 'string' && val.trim()) {
+      quikanRecurrenceId = val.trim();
+    }
   }
 
   // RDATE
@@ -196,8 +218,7 @@ export function parseVTODO(icsContent: string, filename: string): Card {
     rruleSupported,
     rdates,
     exdates,
-    recurrenceId,
-    isRecurringChild: !!recurrenceId,
+    quikanRecurrenceId,
   };
 }
 
@@ -226,8 +247,8 @@ export function cardToVTODO(card: Card): string {
   vtodo.updatePropertyWithValue('status', status);
   vtodo.updatePropertyWithValue('x-quikan-column', card.column);
 
-  // DTSTART — required by RFC 5545 when RRULE is present; also written for child overrides
-  if (card.rrule || card.isRecurringChild) {
+  // DTSTART — required by RFC 5545 when RRULE is present
+  if (card.rrule) {
     const dtstartDate = card.dtstart ?? card.due;
     if (dtstartDate) {
       vtodo.updatePropertyWithValue('dtstart', dateToIcalTime(dtstartDate, card.dueHasTime));
@@ -251,12 +272,9 @@ export function cardToVTODO(card: Card): string {
     vtodo.updatePropertyWithValue('rrule', ICAL.Recur.fromString(card.rrule));
   }
 
-  // RECURRENCE-ID (child override cards only)
-  if (card.recurrenceId) {
-    vtodo.updatePropertyWithValue(
-      'recurrence-id',
-      dateToIcalTime(card.recurrenceId, card.dueHasTime)
-    );
+  // X-QUIKAN-RECURRENCE-ID links a completed clone back to its master recurring card
+  if (card.quikanRecurrenceId) {
+    vtodo.updatePropertyWithValue('x-quikan-recurrence-id', card.quikanRecurrenceId);
   }
 
   // RDATE list
@@ -422,12 +440,12 @@ export function formatRruleText(card: Card): string | null {
 
 /**
  * Find the next occurrence in a master card's recurrence set after master.due
- * that has not already been overridden by an existing child.
+ * that has not already been covered by an existing completed clone.
  * Returns null if the series is exhausted.
  *
  * Uses ical.js RRULE iteration. Safety-limited to 1000 iterations.
  */
-export function computeNextOccurrence(master: Card, existingChildren: Card[]): Date | null {
+export function computeNextOccurrence(master: Card, completedClones: Card[]): Date | null {
   if (!master.rrule) return null;
 
   const anchor = master.dtstart ?? master.due;
@@ -443,10 +461,8 @@ export function computeNextOccurrence(master: Card, existingChildren: Card[]): D
   const icalAnchor = dateToIcalTime(anchor, master.dueHasTime);
   const iter = recur.iterator(icalAnchor);
 
-  // Dates already covered by child overrides (ms timestamps for fast lookup)
-  const overriddenMs = new Set(
-    existingChildren.filter((c) => c.recurrenceId).map((c) => c.recurrenceId!.getTime())
-  );
+  // Due dates of already-completed clones (ms timestamps for fast lookup)
+  const completedMs = new Set(completedClones.filter((c) => c.due).map((c) => c.due!.getTime()));
 
   const currentDueMs = master.due?.getTime() ?? 0;
   const MAX_ITER = 1000;
@@ -456,7 +472,7 @@ export function computeNextOccurrence(master: Card, existingChildren: Card[]): D
     if (!next) break;
     const nextDate = icalTimeToDate(next);
     const nextMs = nextDate.getTime();
-    if (nextMs > currentDueMs && !overriddenMs.has(nextMs)) {
+    if (nextMs > currentDueMs && !completedMs.has(nextMs)) {
       return nextDate;
     }
   }
@@ -465,23 +481,39 @@ export function computeNextOccurrence(master: Card, existingChildren: Card[]): D
 }
 
 export async function readAllCards(): Promise<Card[]> {
-  try {
-    await fs.mkdir(getDataDir(), { recursive: true });
-    const files = await fs.readdir(getDataDir());
-    const icsFiles = files.filter((f) => f.endsWith('.ics'));
+  await fs.mkdir(getDataDir(), { recursive: true });
+  const files = await fs.readdir(getDataDir());
+  const icsFiles = files.filter((f) => f.endsWith('.ics'));
 
-    const cards = await Promise.all(
-      icsFiles.map(async (file) => {
-        const content = await fs.readFile(path.join(getDataDir(), file), 'utf-8');
-        return parseVTODO(content, file);
-      })
-    );
+  const results = await Promise.allSettled(
+    icsFiles.map(async (file) => {
+      const content = await fs.readFile(path.join(getDataDir(), file), 'utf-8');
+      return parseVTODO(content, file);
+    })
+  );
 
-    return cards;
-  } catch (error) {
-    console.error('Error reading cards:', error);
-    return [];
+  const validationErrors: string[] = [];
+  const cards: Card[] = [];
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      cards.push(result.value);
+    } else {
+      validationErrors.push(
+        result.reason instanceof Error ? result.reason.message : String(result.reason)
+      );
+    }
   }
+
+  if (validationErrors.length > 0) {
+    throw new Error(
+      `Invalid data detected in ${validationErrors.length} file(s):\n` +
+        validationErrors.map((e) => `  - ${e}`).join('\n') +
+        '\n\nPlease fix or remove the affected file(s) before using Quikan.'
+    );
+  }
+
+  return cards;
 }
 
 export async function readCard(id: string): Promise<Card | null> {
@@ -493,16 +525,16 @@ export async function readCard(id: string): Promise<Card | null> {
   }
 }
 
-/** Return all child override cards that share the given UID. */
-export async function readChildrenOf(uid: string): Promise<Card[]> {
+/** Return all completed clones that were created from the given master UID. */
+export async function readClonesOf(masterUid: string): Promise<Card[]> {
   const all = await readAllCards();
-  return all.filter((c) => c.uid === uid && c.isRecurringChild);
+  return all.filter((c) => c.quikanRecurrenceId === masterUid);
 }
 
-/** Return the master card for the given UID (the card without a RECURRENCE-ID). */
-export async function readMasterOf(uid: string): Promise<Card | null> {
+/** Return the master recurring card for a given clone (by its quikanRecurrenceId). */
+export async function readParentOf(quikanRecurrenceId: string): Promise<Card | null> {
   const all = await readAllCards();
-  return all.find((c) => c.uid === uid && !c.isRecurringChild) ?? null;
+  return all.find((c) => c.uid === quikanRecurrenceId && !c.quikanRecurrenceId) ?? null;
 }
 
 export async function writeCard(card: Card): Promise<void> {
@@ -579,63 +611,60 @@ export async function updateCard(
 }
 
 /**
- * Create a child override card for a specific instance of a recurring master.
- * The child inherits the master's current DUE as its own DUE and RECURRENCE-ID.
+ * Create a standalone completed clone for a specific instance of a recurring master.
+ * The clone gets a new UID and X-QUIKAN-RECURRENCE-ID pointing back to the master.
  */
-export async function createChildOverride(master: Card, targetColumn: string): Promise<Card> {
+export async function createCompletedClone(master: Card, targetColumn: string): Promise<Card> {
   const now = new Date();
   const instanceDate = master.due ?? now;
-  const childId = uuidv4();
+  const cloneId = uuidv4();
 
-  const child: Card = {
-    id: childId,
-    uid: master.uid,
+  const clone: Card = {
+    id: cloneId,
+    uid: cloneId,
     summary: master.summary,
     description: master.description,
     column: targetColumn,
     priority: master.priority,
-    created: master.created,
+    created: now,
     modified: now,
     due: instanceDate,
     dueHasTime: master.dueHasTime,
-    dtstart: instanceDate,
-    recurrenceId: instanceDate,
-    isRecurringChild: true,
+    quikanRecurrenceId: master.uid,
     completed: targetColumn === 'done' ? now : undefined,
   };
 
-  await writeCard(child);
-  return child;
+  await writeCard(clone);
+  return clone;
 }
 
 /**
  * Move a card to a different column.
  *
- * For a recurring master with a supported RRULE: creates a child override for
- * the current instance, then advances the master's DUE to the next occurrence.
- * Returns the child card (which appears in the target column).
+ * For a recurring master with a supported RRULE: creates a standalone completed clone
+ * for the current instance, then advances the master's DUE to the next occurrence.
+ * Returns the clone card (which appears in the target column).
  *
- * For child cards and non-recurring cards: standard column update.
+ * For clones and non-recurring cards: standard column update.
  */
 export async function moveCard(id: string, targetColumn: string): Promise<Card | null> {
   const card = await readCard(id);
   if (!card) return null;
 
-  if (card.rrule && card.rruleSupported !== false && !card.isRecurringChild) {
-    const child = await createChildOverride(card, targetColumn);
+  if (card.rrule && card.rruleSupported !== false && !card.quikanRecurrenceId) {
+    const clone = await createCompletedClone(card, targetColumn);
 
-    const existingChildren = await readChildrenOf(card.uid);
-    const nextDue = computeNextOccurrence(card, existingChildren);
+    const existingClones = await readClonesOf(card.uid);
+    const nextDue = computeNextOccurrence(card, existingClones);
 
     if (nextDue !== null) {
-      // Advance master's DUE to the next occurrence; keep it in todo
       await updateCard(id, { due: nextDue, column: 'todo' });
     } else {
       // Series exhausted — complete the master too
       await updateCard(id, { column: 'done' });
     }
 
-    return child;
+    return clone;
   }
 
   return await updateCard(id, { column: targetColumn });

@@ -29,7 +29,7 @@ interface CardType {
   completed?: string | null;
   isRecurring?: boolean | null;
   isRecurringChild?: boolean | null;
-  recurrenceId?: string | null;
+  quikanRecurrenceId?: string | null;
   rrule?: string | null;
   rruleText?: string | null;
   rruleSupported?: boolean | null;
@@ -270,7 +270,7 @@ const App: React.FC = () => {
             rdates: editingCard.rdates ?? undefined,
             exdates: editingCard.exdates ?? undefined,
             isRecurringChild: editingCard.isRecurringChild ?? undefined,
-            recurrenceId: editingCard.recurrenceId ?? undefined,
+            quikanRecurrenceId: editingCard.quikanRecurrenceId ?? undefined,
           }}
           onClose={() => setEditingCard(null)}
           onSubmit={handleEditCard}

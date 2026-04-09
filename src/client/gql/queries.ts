@@ -17,7 +17,7 @@ export const GET_COLUMNS = gql`
         dueHasTime
         isRecurring
         isRecurringChild
-        recurrenceId
+        quikanRecurrenceId
         rrule
         rruleText
         rruleSupported
@@ -122,12 +122,12 @@ export const DELETE_CARD = gql`
   }
 `;
 
-export const GET_CARD_CHILDREN = gql`
-  query GetCardChildren($id: ID!) {
-    cardChildren(id: $id) {
+export const GET_CARD_CLONES = gql`
+  query GetCardClones($id: ID!) {
+    cardClones(id: $id) {
       id
       summary
-      recurrenceId
+      quikanRecurrenceId
       column
     }
   }

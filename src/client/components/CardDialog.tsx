@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
-import { GET_CARD_CHILDREN, GET_CARD_PARENT } from '../gql/queries';
+import { GET_CARD_CLONES, GET_CARD_PARENT } from '../gql/queries';
 
 // ─── RRULE helpers ───────────────────────────────────────────────────────────
 
@@ -202,7 +202,7 @@ interface CardDialogValues {
   rdates?: string[];
   exdates?: string[];
   isRecurringChild?: boolean;
-  recurrenceId?: string;
+  quikanRecurrenceId?: string;
 }
 
 interface CardDialogProps {
@@ -262,12 +262,13 @@ function selectToPriority(value: string): number | undefined {
   return undefined;
 }
 
-function formatRecurrenceId(recurrenceId: string): string {
+function formatCloneDate(due: string | null): string {
+  if (!due) return 'completed';
   try {
-    const d = new Date(recurrenceId);
+    const d = new Date(due);
     return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   } catch {
-    return recurrenceId;
+    return due;
   }
 }
 
@@ -442,9 +443,9 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const rruleSupported = initialValues?.rruleSupported;
   const hasUnsupportedRRule = isRecurring && rruleSupported === false;
 
-  const [loadChildren, { data: childrenData }] = useLazyQuery<{
-    cardChildren: { id: string; summary: string; recurrenceId: string; column: string }[];
-  }>(GET_CARD_CHILDREN);
+  const [loadClones, { data: clonesData }] = useLazyQuery<{
+    cardClones: { id: string; summary: string; due: string | null; column: string }[];
+  }>(GET_CARD_CLONES);
   const [loadParent, { data: parentData }] = useLazyQuery<{
     cardParent: { id: string; summary: string; rrule: string } | null;
   }>(GET_CARD_PARENT);
@@ -464,14 +465,14 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
   useEffect(() => {
     if (!isOpen || !cardId) return;
-    if (initialValues?.rrule) loadChildren({ variables: { id: cardId } });
+    if (initialValues?.rrule) loadClones({ variables: { id: cardId } });
     if (initialValues?.isRecurringChild) loadParent({ variables: { id: cardId } });
   }, [
     isOpen,
     cardId,
     initialValues?.rrule,
     initialValues?.isRecurringChild,
-    loadChildren,
+    loadClones,
     loadParent,
   ]);
 
@@ -517,7 +518,7 @@ const CardDialog: React.FC<CardDialogProps> = ({
     onClose();
   };
 
-  const children = childrenData?.cardChildren ?? [];
+  const clones = clonesData?.cardClones ?? [];
   const parent = parentData?.cardParent ?? null;
 
   return (
@@ -965,19 +966,14 @@ const CardDialog: React.FC<CardDialogProps> = ({
             </div>
           )}
 
-          {/* Parent/child links (edit mode only) */}
-          {cardId && (isChild || children.length > 0) && (
+          {/* Parent/clone links (edit mode only) */}
+          {cardId && (isChild || clones.length > 0) && (
             <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md text-sm">
               {isChild ? (
                 <>
                   <p className="text-gray-500 text-xs font-medium mb-1">
                     🔄 Instance of recurring series
                   </p>
-                  {initialValues?.recurrenceId && (
-                    <p className="text-gray-600 text-xs mb-2">
-                      Override for: {formatRecurrenceId(initialValues.recurrenceId)}
-                    </p>
-                  )}
                   {parent && (
                     <button
                       type="button"
@@ -991,19 +987,17 @@ const CardDialog: React.FC<CardDialogProps> = ({
               ) : (
                 <>
                   <p className="text-gray-500 text-xs font-medium mb-2">
-                    🔄 {children.length} instance override{children.length !== 1 ? 's' : ''}
+                    🔄 {clones.length} completed instance{clones.length !== 1 ? 's' : ''}
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {children.map((child) => (
+                    {clones.map((clone) => (
                       <button
-                        key={child.id}
+                        key={clone.id}
                         type="button"
-                        onClick={() => onOpenCard?.(child.id)}
+                        onClick={() => onOpenCard?.(clone.id)}
                         className="px-2 py-0.5 bg-gray-200 hover:bg-gray-300 rounded text-xs text-gray-700 transition-colors"
                       >
-                        {child.recurrenceId
-                          ? formatRecurrenceId(child.recurrenceId)
-                          : child.summary}
+                        {formatCloneDate(clone.due)}
                       </button>
                     ))}
                   </div>
