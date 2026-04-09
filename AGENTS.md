@@ -4,7 +4,7 @@ This file is for AI agents to consume to understand internal details. Whenever a
 
 ## Coding Conventions
 
-- **Comments**: Only add comments when they provide insight that isn't obvious from the code itself. Never add comments that just label or restate what the code does (e.g., `// Start server` above `app.listen()`). Prefer explaining *why* something is done, or clarifying genuinely non-obvious *what*.
+- **Comments**: Only add comments when they provide insight that isn't obvious from the code itself. Never add comments that just label or restate what the code does (e.g., `// Start server` above `app.listen()`). Prefer explaining *why* something is done, or clarifying genuinely non-obvious *what*, and name identifiers in a meaningful way to reduce the need for comments. In general, comments should be minimal and rare.
 
 ## Finalizing Changes
 
