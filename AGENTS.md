@@ -24,6 +24,10 @@ Before considering any change complete, always run these steps in order and fix 
 - **Storage**: VTODO `.ics` files in `data/`
 - **Build tool**: Vite
 
+## UI Guidelines
+
+Tasks should always be referred to as 'tasks' for the UI, even though the UI elements may in some cases be visually depicted as 'cards' on a Kanban-style board.
+
 ## VTODO Storage Format
 
 Each card is a `.ics` file. Custom property:

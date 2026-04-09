@@ -19,7 +19,7 @@ test('edit dialog prefills with existing card data', async ({ page }) => {
   await expect(summaryInput).toHaveValue(cardSummary!.trim());
 });
 
-test('edit dialog shows Delete Card button', async ({ page }) => {
+test('edit dialog shows Delete Todo button', async ({ page }) => {
   await page.goto('/');
 
   const firstCard = page.locator('[data-testid="card"]').first();
@@ -31,9 +31,10 @@ test('edit dialog shows Delete Card button', async ({ page }) => {
   await expect(dialog).toBeVisible();
 
   await expect(dialog.locator('[data-testid="delete-card-btn"]')).toBeVisible();
+  await expect(dialog.locator('[data-testid="delete-card-btn"]')).toHaveText('Delete Todo');
 });
 
-test('delete card — cancel confirmation leaves card intact', async ({ page }) => {
+test('delete todo — cancel confirmation leaves todo intact', async ({ page }) => {
   await page.goto('/');
 
   const firstCard = page.locator('[data-testid="card"]').first();
@@ -55,7 +56,7 @@ test('delete card — cancel confirmation leaves card intact', async ({ page }) 
   await expect(page.locator('[data-testid="card-summary"]').filter({ hasText: cardSummary!.trim() })).toBeVisible();
 });
 
-test('delete card — confirm removes card from board', async ({ page }) => {
+test('delete todo — confirm removes todo from board', async ({ page }) => {
   await page.goto('/');
 
   const firstCard = page.locator('[data-testid="card"]').first();
@@ -72,7 +73,7 @@ test('delete card — confirm removes card from board', async ({ page }) => {
   page.on('dialog', (d) => d.accept());
   await dialog.locator('[data-testid="delete-card-btn"]').click();
 
-  // Dialog should close and card should no longer appear on the board
+  // Dialog should close and todo should no longer appear on the board
   await expect(dialog).not.toBeVisible();
   await expect(page.locator('[data-testid="card-summary"]').filter({ hasText: cardSummary!.trim() })).not.toBeVisible();
 });

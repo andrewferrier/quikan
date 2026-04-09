@@ -86,7 +86,7 @@ const App: React.FC = () => {
       await moveCard({ variables: { id: active.id as string, targetColumn } });
       await refetch();
     } catch {
-      toast.error('Could not move card — server unreachable.');
+      toast.error('Could not move todo — server unreachable.');
     }
   };
 
@@ -115,7 +115,7 @@ const App: React.FC = () => {
       });
       await refetch();
     } catch {
-      toast.error('Could not create card — server unreachable.');
+      toast.error('Could not create todo — server unreachable.');
     }
   };
 
@@ -146,7 +146,7 @@ const App: React.FC = () => {
       });
       await refetch();
     } catch {
-      toast.error('Could not save card — server unreachable.');
+      toast.error('Could not save todo — server unreachable.');
     }
   };
 
@@ -157,7 +157,7 @@ const App: React.FC = () => {
       setEditingCard(null);
       await refetch();
     } catch {
-      toast.error('Could not delete card — server unreachable.');
+      toast.error('Could not delete todo — server unreachable.');
     }
   };
 
@@ -245,8 +245,8 @@ const App: React.FC = () => {
 
       <CardDialog
         isOpen={isAddDialogOpen}
-        title="Add Card"
-        submitLabel="Add Card"
+        title="Add Todo"
+        submitLabel="Add Todo"
         onClose={() => setIsAddDialogOpen(false)}
         onSubmit={handleAddCard}
       />
@@ -254,7 +254,7 @@ const App: React.FC = () => {
       {editingCard && (
         <CardDialog
           isOpen={true}
-          title="Edit Card"
+          title="Edit Todo"
           submitLabel="Save"
           cardId={editingCard.id}
           initialValues={{

@@ -1006,13 +1006,13 @@ const CardDialog: React.FC<CardDialogProps> = ({
                 type="button"
                 data-testid="delete-card-btn"
                 onClick={() => {
-                  if (window.confirm('Are you sure you want to delete this card?')) {
+                  if (window.confirm('Are you sure you want to delete this todo?')) {
                     onDelete();
                   }
                 }}
                 className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors mr-auto"
               >
-                Delete Card
+                Delete Todo
               </button>
             )}
             <button
