@@ -13,7 +13,7 @@ import {
 import { Toaster, toast } from 'sonner';
 import Column from './components/Column';
 import CardDialog from './components/CardDialog';
-import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD } from './gql/queries';
+import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD, DELETE_CARD } from './gql/queries';
 import { formatDue } from './utils/dueDate';
 import { shouldPerformMove } from './utils/dragLogic';
 
@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [createCard] = useMutation(CREATE_CARD);
   const [moveCard] = useMutation(MOVE_CARD);
   const [updateCard] = useMutation(UPDATE_CARD);
+  const [deleteCard] = useMutation(DELETE_CARD);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -146,6 +147,17 @@ const App: React.FC = () => {
       await refetch();
     } catch {
       toast.error('Could not save card — server unreachable.');
+    }
+  };
+
+  const handleDeleteCard = async () => {
+    if (!editingCard) return;
+    try {
+      await deleteCard({ variables: { id: editingCard.id } });
+      setEditingCard(null);
+      await refetch();
+    } catch {
+      toast.error('Could not delete card — server unreachable.');
     }
   };
 
@@ -261,6 +273,7 @@ const App: React.FC = () => {
           }}
           onClose={() => setEditingCard(null)}
           onSubmit={handleEditCard}
+          onDelete={handleDeleteCard}
           onOpenCard={(id) => {
             const card = data?.columns.flatMap((col) => col.cards).find((c) => c.id === id);
             if (card) {

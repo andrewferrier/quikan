@@ -222,6 +222,7 @@ interface CardDialogProps {
     rdates?: string[];
     exdates?: string[];
   }) => void;
+  onDelete?: () => void;
   onOpenCard?: (id: string) => void;
 }
 
@@ -402,6 +403,7 @@ const CardDialog: React.FC<CardDialogProps> = ({
   initialValues,
   onClose,
   onSubmit,
+  onDelete,
   onOpenCard,
 }) => {
   const [form, setForm] = useState<FormValues>(() =>
@@ -999,6 +1001,20 @@ const CardDialog: React.FC<CardDialogProps> = ({
           )}
 
           <div className="flex justify-end gap-2 mt-3">
+            {onDelete && (
+              <button
+                type="button"
+                data-testid="delete-card-btn"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this card?')) {
+                    onDelete();
+                  }
+                }}
+                className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors mr-auto"
+              >
+                Delete Card
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
