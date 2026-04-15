@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation } from '@apollo/client/react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useMutation, useApolloClient } from '@apollo/client/react';
 import {
   DndContext,
   DragEndEvent,
@@ -15,7 +15,12 @@ import Column from './components/Column';
 import CardDialog from './components/CardDialog';
 import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD, DELETE_CARD } from './gql/queries';
 import { formatDue } from './utils/dueDate';
-import { shouldPerformMove } from './utils/dragLogic';
+import {
+  shouldPerformMove,
+  computePendingMove,
+  applyPendingMoves,
+  PendingMove,
+} from './utils/dragLogic';
 
 interface CardType {
   id: string;
@@ -54,12 +59,29 @@ const App: React.FC = () => {
   const [draggingCard, setDraggingCard] = useState<CardType | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<CardType | null>(null);
+  const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
 
-  const { loading, error, data, refetch } = useQuery<{ columns: ColumnType[] }>(GET_COLUMNS);
-  const [createCard] = useMutation(CREATE_CARD);
-  const [moveCard] = useMutation(MOVE_CARD);
-  const [updateCard] = useMutation(UPDATE_CARD);
-  const [deleteCard] = useMutation(DELETE_CARD);
+  const { loading, error, data, previousData, refetch } = useQuery<{ columns: ColumnType[] }>(
+    GET_COLUMNS,
+    {
+      fetchPolicy: 'cache-and-network',
+      notifyOnNetworkStatusChange: false,
+    }
+  );
+  const displayData = data ?? previousData;
+  const client = useApolloClient();
+
+  const [createCard] = useMutation<{ createCard: ColumnType[] }>(CREATE_CARD);
+  const [moveCard] = useMutation<{ moveCard: ColumnType[] }>(MOVE_CARD);
+  const [updateCard] = useMutation<{ updateCard: ColumnType[] }>(UPDATE_CARD);
+  const [deleteCard] = useMutation<{ deleteCard: ColumnType[] }>(DELETE_CARD);
+
+  const shownColumns = useMemo(
+    () => applyPendingMoves(displayData?.columns ?? [], pendingMoves),
+    [displayData, pendingMoves]
+  );
+
+  const pendingCardIds = useMemo(() => new Set(pendingMoves.map((m) => m.cardId)), [pendingMoves]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -68,7 +90,7 @@ const App: React.FC = () => {
   );
 
   const handleDragStart = (event: DragStartEvent) => {
-    const card = data?.columns.flatMap((col) => col.cards).find((c) => c.id === event.active.id);
+    const card = shownColumns.flatMap((col) => col.cards).find((c) => c.id === event.active.id);
     setDraggingCard(card || null);
   };
 
@@ -76,18 +98,31 @@ const App: React.FC = () => {
     const { active, over } = event;
     setDraggingCard(null);
 
-    if (!data) return;
+    if (!displayData) return;
 
-    const allCards = data.columns.flatMap((col) => col.cards);
+    const allCards = displayData.columns.flatMap((col) => col.cards);
     const targetColumn = over?.id as string | undefined;
 
     if (!shouldPerformMove(allCards, active.id as string, targetColumn)) return;
 
+    const card = allCards.find((c) => c.id === active.id)!;
+    const pendingMove = computePendingMove(card, targetColumn!);
+
+    if (pendingMove) {
+      setPendingMoves((prev) => [...prev, pendingMove]);
+    }
+
     try {
-      await moveCard({ variables: { id: active.id as string, targetColumn } });
-      await refetch();
+      const result = await moveCard({ variables: { id: active.id as string, targetColumn } });
+      if (result.data?.moveCard) {
+        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.moveCard } });
+      }
     } catch {
       toast.error('Could not move todo — server unreachable.');
+    } finally {
+      if (pendingMove) {
+        setPendingMoves((prev) => prev.filter((m) => m.cardId !== active.id));
+      }
     }
   };
 
@@ -102,7 +137,7 @@ const App: React.FC = () => {
     exdates?: string[];
   }) => {
     try {
-      await createCard({
+      const result = await createCard({
         variables: {
           summary: values.summary,
           column: values.column,
@@ -114,7 +149,9 @@ const App: React.FC = () => {
           exdates: values.exdates ?? null,
         },
       });
-      await refetch();
+      if (result.data?.createCard) {
+        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.createCard } });
+      }
     } catch {
       toast.error('Could not create todo — server unreachable.');
     }
@@ -132,7 +169,7 @@ const App: React.FC = () => {
   }) => {
     if (!editingCard) return;
     try {
-      await updateCard({
+      const result = await updateCard({
         variables: {
           id: editingCard.id,
           summary: values.summary,
@@ -145,7 +182,9 @@ const App: React.FC = () => {
           exdates: values.exdates ?? null,
         },
       });
-      await refetch();
+      if (result.data?.updateCard) {
+        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.updateCard } });
+      }
     } catch {
       toast.error('Could not save todo — server unreachable.');
     }
@@ -154,15 +193,17 @@ const App: React.FC = () => {
   const handleDeleteCard = async () => {
     if (!editingCard) return;
     try {
-      await deleteCard({ variables: { id: editingCard.id } });
+      const result = await deleteCard({ variables: { id: editingCard.id } });
       setEditingCard(null);
-      await refetch();
+      if (result.data?.deleteCard) {
+        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.deleteCard } });
+      }
     } catch {
       toast.error('Could not delete todo — server unreachable.');
     }
   };
 
-  if (loading) {
+  if (loading && !displayData) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-gray-600">Loading...</p>
@@ -208,13 +249,14 @@ const App: React.FC = () => {
           onDragEnd={handleDragEnd}
         >
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {data?.columns.map((column) => (
+            {shownColumns.map((column) => (
               <Column
                 key={column.id}
                 id={column.id}
                 name={column.name}
                 cards={column.cards}
                 hiddenCount={column.hiddenCount}
+                pendingCardIds={pendingCardIds}
                 onCardClick={(card) => setEditingCard(card)}
               />
             ))}
@@ -276,7 +318,7 @@ const App: React.FC = () => {
           onSubmit={handleEditCard}
           onDelete={handleDeleteCard}
           onOpenCard={(id) => {
-            const card = data?.columns.flatMap((col) => col.cards).find((c) => c.id === id);
+            const card = shownColumns.flatMap((col) => col.cards).find((c) => c.id === id);
             if (card) {
               setEditingCard(null);
               setTimeout(() => setEditingCard(card), 0);

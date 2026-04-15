@@ -142,6 +142,36 @@ export function computeVirtualColumnUpdates(
   return updates;
 }
 
+async function buildColumns(now: Date): Promise<Column[]> {
+  const allCards = await readAllCards();
+  const visibleCards = filterOldCompletedCards(allCards, now);
+
+  const todoCards = visibleCards.filter((c) => c.column === 'todo');
+  const inProgressCards = visibleCards.filter((c) => c.column === 'in-progress');
+  const doneCards = visibleCards.filter((c) => c.column === 'done');
+
+  const totalDone = allCards.filter((c) => c.column === 'done').length;
+  const hiddenDoneCount = totalDone - doneCards.length;
+
+  const virtualTodoCols: Column[] = VIRTUAL_TODO_COLUMNS.map(({ id, name }) => ({
+    id,
+    name,
+    hiddenCount: 0,
+    cards: sortCardsByDue(todoCards.filter((card) => getTodoVirtualColumn(card, now) === id)),
+  }));
+
+  return [
+    ...virtualTodoCols,
+    {
+      id: 'in-progress',
+      name: 'In Progress',
+      hiddenCount: 0,
+      cards: sortCardsByDue(inProgressCards),
+    },
+    { id: 'done', name: 'Done', hiddenCount: hiddenDoneCount, cards: sortDoneCards(doneCards) },
+  ];
+}
+
 export const resolvers = {
   Card: {
     column: (card: Card) => {
@@ -173,34 +203,7 @@ export const resolvers = {
     },
 
     columns: async (): Promise<Column[]> => {
-      const now = new Date();
-      const allCards = await readAllCards();
-      const visibleCards = filterOldCompletedCards(allCards, now);
-
-      const todoCards = visibleCards.filter((c) => c.column === 'todo');
-      const inProgressCards = visibleCards.filter((c) => c.column === 'in-progress');
-      const doneCards = visibleCards.filter((c) => c.column === 'done');
-
-      const totalDone = allCards.filter((c) => c.column === 'done').length;
-      const hiddenDoneCount = totalDone - doneCards.length;
-
-      const virtualTodoCols: Column[] = VIRTUAL_TODO_COLUMNS.map(({ id, name }) => ({
-        id,
-        name,
-        hiddenCount: 0,
-        cards: sortCardsByDue(todoCards.filter((card) => getTodoVirtualColumn(card, now) === id)),
-      }));
-
-      return [
-        ...virtualTodoCols,
-        {
-          id: 'in-progress',
-          name: 'In Progress',
-          hiddenCount: 0,
-          cards: sortCardsByDue(inProgressCards),
-        },
-        { id: 'done', name: 'Done', hiddenCount: hiddenDoneCount, cards: sortDoneCards(doneCards) },
-      ];
+      return buildColumns(new Date());
     },
 
     cardClones: async (_: unknown, { id }: { id: string }): Promise<Card[]> => {
@@ -238,9 +241,9 @@ export const resolvers = {
         rdates?: string[];
         exdates?: string[];
       }
-    ): Promise<Card> => {
+    ): Promise<Column[]> => {
       const { due: dueDate, dueHasTime } = parseDueInput(due);
-      return await createCardStorage(
+      await createCardStorage(
         summary,
         column,
         dueDate,
@@ -251,6 +254,7 @@ export const resolvers = {
         parseRdatesInput(rdates),
         parseRdatesInput(exdates)
       );
+      return buildColumns(new Date());
     },
 
     updateCard: async (
@@ -276,7 +280,7 @@ export const resolvers = {
         rdates?: string[] | null;
         exdates?: string[] | null;
       }
-    ): Promise<Card | null> => {
+    ): Promise<Column[]> => {
       const updates: Partial<Card> = {};
       if (summary !== undefined) updates.summary = summary;
       if (column !== undefined) {
@@ -308,32 +312,28 @@ export const resolvers = {
       if (exdates !== undefined) {
         updates.exdates = exdates === null ? undefined : parseRdatesInput(exdates);
       }
-      return await updateCardStorage(id, updates);
+      await updateCardStorage(id, updates);
+      return buildColumns(new Date());
     },
 
     moveCard: async (
       _: unknown,
       { id, targetColumn }: { id: string; targetColumn: string }
-    ): Promise<Card | null> => {
+    ): Promise<Column[]> => {
       if (VIRTUAL_TODO_COL_IDS.has(targetColumn)) {
         const result = computeVirtualColumnUpdates(targetColumn, new Date());
-        if (result === 'unchanged') {
-          return await readCard(id);
+        if (result !== 'unchanged') {
+          await updateCardStorage(id, result);
         }
-        return await updateCardStorage(id, result);
+      } else {
+        await moveCardStorage(id, targetColumn);
       }
-
-      return await moveCardStorage(id, targetColumn);
+      return buildColumns(new Date());
     },
 
-    deleteCard: async (_: unknown, { id }: { id: string }): Promise<boolean> => {
-      try {
-        await deleteCardStorage(id);
-        return true;
-      } catch (error) {
-        console.error('Error deleting card:', error);
-        return false;
-      }
+    deleteCard: async (_: unknown, { id }: { id: string }): Promise<Column[]> => {
+      await deleteCardStorage(id);
+      return buildColumns(new Date());
     },
   },
 };

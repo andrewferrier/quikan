@@ -22,6 +22,7 @@ interface ColumnProps {
   name: string;
   cards: CardType[];
   hiddenCount: number;
+  pendingCardIds?: Set<string>;
   onCardClick: (card: CardType) => void;
 }
 
@@ -35,7 +36,14 @@ const COLUMN_EMOJIS: Record<string, string> = {
   done: '✅',
 };
 
-const Column: React.FC<ColumnProps> = ({ id, name, cards, hiddenCount, onCardClick }) => {
+const Column: React.FC<ColumnProps> = ({
+  id,
+  name,
+  cards,
+  hiddenCount,
+  pendingCardIds,
+  onCardClick,
+}) => {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const cardCount = `${cards.length} card${cards.length !== 1 ? 's' : ''}`;
@@ -87,6 +95,7 @@ const Column: React.FC<ColumnProps> = ({ id, name, cards, hiddenCount, onCardCli
             isRecurring={card.isRecurring}
             isRecurringChild={card.isRecurringChild}
             rruleText={card.rruleText}
+            pending={pendingCardIds?.has(card.id)}
             onClick={() => onCardClick(card)}
           />
         ))}

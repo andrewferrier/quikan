@@ -46,7 +46,7 @@ export const typeDefs = `#graphql
       rrule: String
       rdates: [String!]
       exdates: [String!]
-    ): Card!
+    ): [Column!]!
     updateCard(
       id: ID!
       summary: String
@@ -57,8 +57,8 @@ export const typeDefs = `#graphql
       rrule: String
       rdates: [String!]
       exdates: [String!]
-    ): Card
-    moveCard(id: ID!, targetColumn: String!): Card
-    deleteCard(id: ID!): Boolean!
+    ): [Column!]!
+    moveCard(id: ID!, targetColumn: String!): [Column!]!
+    deleteCard(id: ID!): [Column!]!
   }
 `;

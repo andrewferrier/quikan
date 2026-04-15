@@ -14,6 +14,7 @@ interface CardProps {
   isRecurring?: boolean | null;
   isRecurringChild?: boolean | null;
   rruleText?: string | null;
+  pending?: boolean;
   onClick?: () => void;
 }
 
@@ -82,9 +83,13 @@ const Card: React.FC<CardProps> = ({
   isRecurring,
   isRecurringChild,
   rruleText,
+  pending,
   onClick,
 }) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id,
+    disabled: !!pending,
+  });
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
   const style: React.CSSProperties = isDragging ? { visibility: 'hidden' } : {};
@@ -108,6 +113,7 @@ const Card: React.FC<CardProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
+    if (pending) return;
     if (!pointerDownPos.current || !onClick) return;
     const dx = e.clientX - pointerDownPos.current.x;
     const dy = e.clientY - pointerDownPos.current.y;
@@ -126,7 +132,8 @@ const Card: React.FC<CardProps> = ({
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       data-testid="card"
-      className={`${priorityBgClass(priority)} p-4 rounded-lg shadow-sm border ${dueDisplay?.color === 'red' ? 'border-red-400' : 'border-gray-200'} cursor-pointer hover:shadow-md transition-shadow`}
+      data-pending={pending ? 'true' : undefined}
+      className={`${priorityBgClass(priority)} p-4 rounded-lg shadow-sm border ${dueDisplay?.color === 'red' ? 'border-red-400' : 'border-gray-200'} ${pending ? 'opacity-50 grayscale cursor-default' : 'cursor-pointer hover:shadow-md'} transition-shadow`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm text-gray-800" data-testid="card-summary">
