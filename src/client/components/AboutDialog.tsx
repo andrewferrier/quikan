@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useQuery } from '@apollo/client/react';
 import { GET_VERSION } from '../gql/queries';
 
@@ -8,6 +8,14 @@ interface AboutDialogProps {
 
 const AboutDialog: React.FC<AboutDialogProps> = ({ onClose }) => {
   const { data } = useQuery<{ version: string }>(GET_VERSION);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   return (
     <div

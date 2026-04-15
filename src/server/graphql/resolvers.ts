@@ -20,6 +20,8 @@ function getGitVersion(): string {
   }
 }
 
+const GIT_VERSION = getGitVersion();
+
 let testNow: Date | null = null;
 
 export function getNow(): Date {
@@ -345,7 +347,7 @@ export const resolvers = {
     },
 
     version: (): string => {
-      return getGitVersion();
+      return GIT_VERSION;
     },
   },
 
