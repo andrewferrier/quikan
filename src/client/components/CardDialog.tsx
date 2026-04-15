@@ -233,13 +233,41 @@ interface CardDialogProps {
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
-function todayStr(): string {
-  const d = new Date();
+function formatDateStr(d: Date): string {
   return [
     d.getFullYear(),
     String(d.getMonth() + 1).padStart(2, '0'),
     String(d.getDate()).padStart(2, '0'),
   ].join('-');
+}
+
+function todayStr(): string {
+  return formatDateStr(new Date());
+}
+
+function getDateShortcuts(): { label: string; value: string }[] {
+  const today = new Date();
+  const day = today.getDay();
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  const shortcuts: { label: string; value: string }[] = [
+    { label: 'Today', value: formatDateStr(today) },
+    { label: 'Tomorrow', value: formatDateStr(tomorrow) },
+  ];
+
+  if (day !== 0 && day !== 6) {
+    const sat = new Date(today);
+    sat.setDate(today.getDate() + (6 - day));
+    shortcuts.push({ label: 'This Weekend', value: formatDateStr(sat) });
+  }
+
+  const nextMon = new Date(today);
+  nextMon.setDate(today.getDate() + (day === 0 ? 1 : 8 - day));
+  shortcuts.push({ label: 'Next Week', value: formatDateStr(nextMon) });
+
+  return shortcuts;
 }
 
 function utcToLocal(iso: string): { date: string; time: string } {
@@ -568,19 +596,40 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
           {/* Column */}
           <div className="mb-4">
-            <label htmlFor="cd-column" className={labelClass}>
-              Column
-            </label>
-            <select
-              id="cd-column"
-              value={column}
-              onChange={(e) => setColumn(e.target.value)}
-              className={inputClass}
-            >
-              <option value="todo">To Do</option>
-              <option value="in-progress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
+            <span className="block text-sm font-medium text-gray-700 mb-2">Status</span>
+            <div className="flex gap-2">
+              {(
+                [
+                  {
+                    value: 'todo',
+                    label: 'Todo',
+                    base: 'border-gray-400 text-gray-600',
+                    active: 'bg-gray-600 border-gray-600 text-white',
+                  },
+                  {
+                    value: 'in-progress',
+                    label: 'In Progress',
+                    base: 'border-blue-400 text-blue-600',
+                    active: 'bg-blue-600 border-blue-600 text-white',
+                  },
+                  {
+                    value: 'done',
+                    label: 'Done',
+                    base: 'border-green-400 text-green-600',
+                    active: 'bg-green-600 border-green-600 text-white',
+                  },
+                ] as const
+              ).map(({ value, label, base, active }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setColumn(value)}
+                  className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${column === value ? `${active} ring-2 ring-offset-1 ring-current` : `bg-white ${base} hover:bg-gray-50`}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Priority */}
@@ -632,7 +681,7 @@ const CardDialog: React.FC<CardDialogProps> = ({
             <label htmlFor="cd-due-date" className={labelClass}>
               Due date
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-2">
               <input
                 type="date"
                 id="cd-due-date"
@@ -654,6 +703,22 @@ const CardDialog: React.FC<CardDialogProps> = ({
                   ×
                 </button>
               )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {getDateShortcuts().map(({ label, value }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setDueDate(value)}
+                  className={`px-3 py-1 text-sm rounded-md border transition-colors ${
+                    dueDate === value
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -680,7 +745,7 @@ const CardDialog: React.FC<CardDialogProps> = ({
                     className={inputClass}
                   />
                   <div className="flex gap-2">
-                    {['12:00', '18:00', '20:00'].map((t) => (
+                    {['09:00', '12:00', '18:00', '20:00'].map((t) => (
                       <button
                         key={t}
                         type="button"
