@@ -79,3 +79,58 @@ function isSameLocalDay(a: Date, b: Date): boolean {
     a.getDate() === b.getDate()
   );
 }
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function dateToStr(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+/**
+ * Returns the earliest YYYY-MM-DD due date that makes a task eligible for
+ * the given virtual column, or undefined for the "no due date" column.
+ * Mirrors the server's computeVirtualColumnUpdates logic.
+ */
+export function getEarliestDueForColumn(columnId: string, now = new Date()): string | undefined {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dow = today.getDay();
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+  const thisMonday = addDays(today, -daysSinceMonday);
+
+  const bounds = {
+    thisSunday: addDays(thisMonday, 6),
+    nextMonday: addDays(thisMonday, 7),
+    nextSaturday: addDays(thisMonday, 12),
+    nextNextMonday: addDays(thisMonday, 14),
+  };
+
+  switch (columnId) {
+    case 'todo-today':
+    case 'in-progress':
+      return dateToStr(today);
+    case 'todo-tomorrow':
+      return dateToStr(addDays(today, 1));
+    case 'todo-this-week':
+      return dateToStr(addDays(today, 2));
+    case 'todo-this-weekend':
+      // On Friday, thisSaturday === tomorrow, so use Sunday instead
+      return dateToStr(dow === 5 ? bounds.thisSunday : addDays(thisMonday, 5));
+    case 'todo-next-week':
+    case 'todo-coming-week':
+      return dateToStr(bounds.nextMonday);
+    case 'todo-next-weekend':
+      return dateToStr(bounds.nextSaturday);
+    case 'todo-following-week':
+      return dateToStr(bounds.nextNextMonday);
+    case 'todo-future':
+      return dateToStr(addDays(today, 21));
+    default:
+      return undefined;
+  }
+}

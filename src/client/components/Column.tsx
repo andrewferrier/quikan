@@ -24,6 +24,7 @@ interface ColumnProps {
   hiddenCount: number;
   pendingCardIds?: Set<string>;
   onCardClick: (card: CardType) => void;
+  onAddClick?: () => void;
 }
 
 const COLUMN_EMOJIS: Record<string, string> = {
@@ -48,6 +49,7 @@ const Column: React.FC<ColumnProps> = ({
   hiddenCount,
   pendingCardIds,
   onCardClick,
+  onAddClick,
 }) => {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -80,9 +82,21 @@ const Column: React.FC<ColumnProps> = ({
       className={`flex-1 min-w-0 rounded-lg p-4 transition-colors ${isOver ? 'bg-gray-200' : 'bg-gray-100'}`}
     >
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-700">
-          {COLUMN_EMOJIS[id] ?? ''} {name}
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-700">
+            {COLUMN_EMOJIS[id] ?? ''} {name}
+          </h2>
+          {onAddClick && (
+            <button
+              onClick={onAddClick}
+              aria-label="Add task"
+              data-testid="add-task-btn"
+              className="text-gray-400 hover:text-gray-600 text-xl leading-none px-1"
+            >
+              +
+            </button>
+          )}
+        </div>
         <p className="text-xs text-gray-500 mt-0.5">{summaryText}</p>
       </div>
       <div className="space-y-3 min-h-[200px]">

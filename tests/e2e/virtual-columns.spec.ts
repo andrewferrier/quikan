@@ -343,7 +343,7 @@ test.describe('time-boundary crossing', () => {
 
     // Trigger a board mutation (create a card via the dialog) — this causes the server to return
     // the new Thursday layout, which the client writes to the Apollo cache
-    await page.getByRole('button', { name: '+ Add Todo' }).click();
+    await page.locator('[data-testid="column-todo-today"] [data-testid="add-task-btn"]').click();
     const dialog = page.locator('[role="dialog"]');
     await dialog.locator('#cd-summary').fill('Boundary test card');
     await dialog.getByRole('button', { name: 'Add Todo' }).click();

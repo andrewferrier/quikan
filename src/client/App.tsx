@@ -15,6 +15,7 @@ import Column from './components/Column';
 import CardDialog from './components/CardDialog';
 import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD, DELETE_CARD } from './gql/queries';
 import { formatDue } from './utils/dueDate';
+import { getEarliestDueForColumn } from './utils/dueDate';
 import {
   shouldPerformMove,
   computePendingMove,
@@ -57,7 +58,9 @@ const DUE_COLOR_CLASS = {
 
 const App: React.FC = () => {
   const [draggingCard, setDraggingCard] = useState<CardType | null>(null);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [addDialogValues, setAddDialogValues] = useState<{ due?: string; column: string } | null>(
+    null
+  );
   const [editingCard, setEditingCard] = useState<CardType | null>(null);
   const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
 
@@ -232,12 +235,6 @@ const App: React.FC = () => {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-800">Quikan</h1>
-          <button
-            onClick={() => setIsAddDialogOpen(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            + Add Todo
-          </button>
         </div>
       </header>
 
@@ -258,6 +255,15 @@ const App: React.FC = () => {
                 hiddenCount={column.hiddenCount}
                 pendingCardIds={pendingCardIds}
                 onCardClick={(card) => setEditingCard(card)}
+                onAddClick={
+                  column.id !== 'done'
+                    ? () =>
+                        setAddDialogValues({
+                          due: getEarliestDueForColumn(column.id),
+                          column: column.id === 'in-progress' ? 'in-progress' : 'todo',
+                        })
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -287,10 +293,15 @@ const App: React.FC = () => {
       </main>
 
       <CardDialog
-        isOpen={isAddDialogOpen}
+        isOpen={addDialogValues !== null}
         title="Add Todo"
         submitLabel="Add Todo"
-        onClose={() => setIsAddDialogOpen(false)}
+        initialValues={
+          addDialogValues
+            ? { summary: '', column: addDialogValues.column, due: addDialogValues.due }
+            : undefined
+        }
+        onClose={() => setAddDialogValues(null)}
         onSubmit={handleAddCard}
       />
 
