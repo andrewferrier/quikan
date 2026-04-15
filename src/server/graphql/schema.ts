@@ -34,6 +34,7 @@ export const typeDefs = `#graphql
     columns: [Column!]!
     cardClones(id: ID!): [Card!]!
     cardParent(id: ID!): Card
+    version: String!
   }
 
   type Mutation {

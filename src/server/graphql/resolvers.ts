@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import {
   readAllCards,
   readCard,
@@ -10,6 +11,14 @@ import {
   formatRruleText,
 } from '../storage/vtodo.js';
 import { Card, Column } from '../types.js';
+
+function getGitVersion(): string {
+  try {
+    return execSync('git describe --tags --always', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'unknown';
+  }
+}
 
 let testNow: Date | null = null;
 
@@ -333,6 +342,10 @@ export const resolvers = {
       const card = await readCard(id);
       if (!card?.quikanRecurrenceId) return null;
       return await readParentOf(card.quikanRecurrenceId);
+    },
+
+    version: (): string => {
+      return getGitVersion();
     },
   },
 

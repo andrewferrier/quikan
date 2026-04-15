@@ -132,3 +132,9 @@ export const GET_CARD_PARENT = gql`
     }
   }
 `;
+
+export const GET_VERSION = gql`
+  query GetVersion {
+    version
+  }
+`;
