@@ -134,6 +134,22 @@ mutation {
 | `npm run lint`       | Lint code                                       |
 | `npm run format`     | Format code with Prettier                       |
 
+## Test Data
+
+### Unit tests (`npm test`)
+
+Unit tests (Jest, in `src/`) never touch the `data/` directory. They use either in-memory fixtures constructed inline, or temporary directories created with `os.tmpdir()` / `mkdtemp` that are cleaned up after each suite.
+
+### E2E tests (`npm run test:e2e`)
+
+E2E tests (Playwright, in `tests/e2e/`) rely on the `resetData()` helper (`tests/e2e/helpers/resetData.ts`), which should be called at the start of each test. It:
+
+1. Deletes all `.ics` files in `data/`.
+2. Copies static fixture files from `tests/fixtures/` into `data/`. These are cards whose content doesn't depend on the current date (e.g. in-progress, no-date, priority, recurring master).
+3. Programmatically generates date-relative seed cards directly in `data/` (today, tomorrow, this-week, etc.), computed relative to the `now` parameter (defaults to real time). Pass a fixed `Date` alongside `setTestNow()` for deterministic time-based tests.
+
+The `data/` directory is `.gitignore`d — it's fully reconstructed at test time. The static fixtures in `tests/fixtures/` are the source of truth for non-date-sensitive seed data.
+
 ## Development Tips
 
 - When an AI agent is working, it may discover that the developer has left the server running (`npm run dev`) in another process. It's OK to kill that if needed.
