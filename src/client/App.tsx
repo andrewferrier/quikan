@@ -13,6 +13,7 @@ import {
 import { Toaster, toast } from 'sonner';
 import Column from './components/Column';
 import CardDialog from './components/CardDialog';
+import AboutDialog from './components/AboutDialog';
 import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD, DELETE_CARD } from './gql/queries';
 import { formatDue } from './utils/dueDate';
 import { getEarliestDueForColumn } from './utils/dueDate';
@@ -63,6 +64,8 @@ const App: React.FC = () => {
   );
   const [editingCard, setEditingCard] = useState<CardType | null>(null);
   const [pendingMoves, setPendingMoves] = useState<PendingMove[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const { loading, error, data, previousData, refetch } = useQuery<{ columns: ColumnType[] }>(
     GET_COLUMNS,
@@ -235,6 +238,44 @@ const App: React.FC = () => {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-800">Quikan</h1>
+          <div className="relative">
+            <button
+              aria-label="Open menu"
+              onClick={() => setMenuOpen((prev) => !prev)}
+              className="p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                  <button
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setAboutOpen(true);
+                    }}
+                  >
+                    About
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -337,6 +378,8 @@ const App: React.FC = () => {
           }}
         />
       )}
+
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
     </div>
   );
 };
