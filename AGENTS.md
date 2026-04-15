@@ -104,6 +104,10 @@ mutation {
 | `npm run lint`       | Lint code                                       |
 | `npm run format`     | Format code with Prettier                       |
 
+## Development Tips
+
+- When an AI agent is working, it may discover that the developer has left the server running (`npm run dev`) in another process. It's OK to kill that if needed.
+
 ## TypeScript Config
 
 Three tsconfig files:
