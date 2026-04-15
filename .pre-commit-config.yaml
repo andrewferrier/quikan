@@ -36,3 +36,7 @@ repos:
             entry: npm run format
             language: system
             pass_filenames: false
+    - repo: https://github.com/igorshubovych/markdownlint-cli
+      rev: v0.43.0
+      hooks:
+          - id: markdownlint
