@@ -8,15 +8,18 @@ const __dirname = path.dirname(__filename);
 const DATA_DIR = path.resolve(__dirname, '../../../data');
 const FIXTURES_DIR = path.resolve(__dirname, '../../fixtures');
 
-function utcDateOffset(offsetDays: number): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + offsetDays));
+function localDayStart(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addLocalDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 
 function formatUtcDate(d: Date): string {
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   return `${y}${m}${day}`;
 }
 
@@ -41,7 +44,7 @@ function writeDynamic(uid: string, content: string): void {
   fs.writeFileSync(path.join(DATA_DIR, `${uid}.ics`), content, 'utf-8');
 }
 
-export function resetData(): void {
+export function resetData(now: Date = new Date()): void {
   if (fs.existsSync(DATA_DIR)) {
     for (const file of fs.readdirSync(DATA_DIR)) {
       if (file.endsWith('.ics')) fs.unlinkSync(path.join(DATA_DIR, file));
@@ -57,35 +60,54 @@ export function resetData(): void {
     }
   }
 
-  // Date-relative todo cards
-  const dateCards = [
-    { uid: 'seed-today', summary: 'Today todo', offset: 0 },
-    { uid: 'seed-tomorrow', summary: 'Tomorrow todo', offset: 1 },
-    { uid: 'seed-this-week', summary: 'This week todo', offset: 3 },
-    { uid: 'seed-dated', summary: 'Dated todo', offset: 30 },
+  const today = localDayStart(now);
+  const dow = today.getDay();
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+  const thisMonday = addLocalDays(today, -daysSinceMonday);
+  const thisWeekFriday = addLocalDays(thisMonday, 4);
+  const thisSaturday = addLocalDays(thisMonday, 5);
+  const nextMonday = addLocalDays(thisMonday, 7);
+  const nextSaturday = addLocalDays(thisMonday, 12);
+  const nextNextMonday = addLocalDays(thisMonday, 14);
+  const tomorrow = addLocalDays(today, 1);
+  const future = addLocalDays(today, 30);
+
+  const dateCards: { uid: string; summary: string; date: Date }[] = [
+    { uid: 'seed-today', summary: 'Today todo', date: today },
+    { uid: 'seed-tomorrow', summary: 'Tomorrow todo', date: tomorrow },
+    // thisWeekFriday: lands in todo-this-week on Mon–Wed; on Thu it = tomorrow; on Fri/Sat/Sun it's overdue/today
+    { uid: 'seed-this-week', summary: 'This week todo', date: thisWeekFriday },
+    // thisSaturday: lands in todo-this-weekend on Mon–Fri; overdue/today on Sat/Sun
+    { uid: 'seed-this-weekend', summary: 'This weekend todo', date: thisSaturday },
+    // nextMonday: todo-next-week (Mon–Fri) or todo-coming-week (Sat–Sun)
+    { uid: 'seed-next-week', summary: 'Next week todo', date: nextMonday },
+    // nextSaturday: todo-next-weekend (Sat–Sun) or todo-future (Mon–Fri)
+    { uid: 'seed-next-weekend', summary: 'Next weekend todo', date: nextSaturday },
+    // nextNextMonday: todo-following-week (Sat–Sun) or todo-future (Mon–Fri)
+    { uid: 'seed-following-week', summary: 'Following week todo', date: nextNextMonday },
+    { uid: 'seed-future', summary: 'Future todo', date: future },
   ];
-  for (const { uid, summary, offset } of dateCards) {
-    const due = formatUtcDate(utcDateOffset(offset));
-    writeDynamic(uid, makeCard(uid, summary, [`DUE;VALUE=DATE:${due}`]));
+
+  for (const { uid, summary, date } of dateCards) {
+    writeDynamic(uid, makeCard(uid, summary, [`DUE;VALUE=DATE:${formatUtcDate(date)}`]));
   }
 
   // Recurring card due today (for recurring completion tests)
   writeDynamic(
     'seed-recurring-today',
     makeCard('seed-recurring-today', 'Weekly recurring todo', [
-      `DTSTART;VALUE=DATE:${formatUtcDate(utcDateOffset(0))}`,
-      `DUE;VALUE=DATE:${formatUtcDate(utcDateOffset(0))}`,
+      `DTSTART;VALUE=DATE:${formatUtcDate(today)}`,
+      `DUE;VALUE=DATE:${formatUtcDate(today)}`,
       'RRULE:FREQ=WEEKLY',
     ])
   );
 
   // Recent done card (visible in Done column)
-  const todayStr = formatUtcDate(utcDateOffset(0));
   writeDynamic(
     'seed-done-recent',
     makeCard('seed-done-recent', 'Done task', [
       'STATUS:COMPLETED',
-      `COMPLETED:${todayStr}T120000Z`,
+      `COMPLETED:${formatUtcDate(today)}T120000Z`,
     ])
   );
 

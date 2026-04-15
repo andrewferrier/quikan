@@ -60,5 +60,7 @@ export const typeDefs = `#graphql
     ): [Column!]!
     moveCard(id: ID!, targetColumn: String!): [Column!]!
     deleteCard(id: ID!): [Column!]!
+    setTestNow(iso: String!): [Column!]!
+    clearTestNow: [Column!]!
   }
 `;

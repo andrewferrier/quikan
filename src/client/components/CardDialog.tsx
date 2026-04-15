@@ -185,7 +185,12 @@ const VIRTUAL_TODO_COL_IDS = new Set([
   'todo-today',
   'todo-tomorrow',
   'todo-this-week',
-  'todo-dated',
+  'todo-this-weekend',
+  'todo-next-week',
+  'todo-coming-week',
+  'todo-next-weekend',
+  'todo-following-week',
+  'todo-future',
 ]);
 
 // ─── CardDialog types ─────────────────────────────────────────────────────────

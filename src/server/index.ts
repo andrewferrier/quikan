@@ -24,16 +24,18 @@ async function startServer() {
 
   await server.start();
 
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
   app.use(cors());
   app.use(bodyParser.json());
-  app.use(limiter);
+
+  if (process.env.NODE_ENV === 'production') {
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 100,
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use(limiter);
+  }
 
   app.use('/graphql', expressMiddleware(server));
 

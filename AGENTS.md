@@ -55,17 +55,47 @@ If you have `.ics` files with `RECURRENCE-ID` from a previous version or an exte
 
 ## Todo Virtual Columns
 
-The `todo` column is split into five virtual sub-columns at the GraphQL/query layer based on each card's due date. Storage always uses `column: 'todo'`. The `Card.column` GraphQL field and the `columns` query return virtual IDs:
+The `todo` column is split into dynamic virtual sub-columns at the GraphQL/query layer based on each card's due date **and the current day of the week**. Storage always uses `column: 'todo'`. The `Card.column` GraphQL field and the `columns` query return virtual IDs.
 
-| ID | Name | Criteria |
+All possible virtual column IDs:
+
+| ID | Name | When shown |
 | --- | --- | --- |
-| `todo-today` | Todo Today | Overdue or due today |
-| `todo-tomorrow` | Todo Tomorrow | Due tomorrow |
-| `todo-this-week` | Todo This Week | Due within the next 7 days (days 2–6) |
-| `todo-dated` | Todo (Dated) | Has a due date ≥ 7 days away |
-| `todo` | Todo | No due date |
+| `todo-today` | Todo (Today) | Always |
+| `todo-tomorrow` | Todo (Tomorrow) | Always |
+| `todo-this-week` | Todo (This Week) | Mon–Wed only |
+| `todo-this-weekend` | Todo (This Weekend) | Always |
+| `todo-next-week` | Todo (Next Week) | Mon–Fri |
+| `todo-coming-week` | Coming Week | Sat–Sun only |
+| `todo-next-weekend` | Next Weekend | Sat–Sun only |
+| `todo-following-week` | Following Week | Sat–Sun only |
+| `todo-future` | Todo (Future) | Always |
+| `todo` | Todo (No Due Date) | Always |
 
-Dragging a card to a virtual column updates its due date (today, tomorrow, today+2 respectively). Dragging to `todo` removes the due date. Dragging to `todo-dated` is a no-op (requires an explicit date change via the edit dialog). The card's STATUS never changes during within-todo moves.
+### Card assignment rules
+
+- ≤ today → `todo-today`
+- tomorrow (calendar day+1) → `todo-tomorrow` (takes priority over all group columns)
+- Mon–Wed: thisWeekFriday → `todo-this-week`; thisSat–Sun → `todo-this-weekend`; nextMon–nextFri → `todo-next-week`; beyond → `todo-future`
+- Thu–Fri: thisSat–thisSun → `todo-this-weekend`; nextMon–nextFri → `todo-next-week`; beyond → `todo-future`
+- Sat–Sun: thisSunday is always Tomorrow, so `todo-this-weekend` is always empty; nextMon–nextFri → `todo-coming-week`; nextSat–nextSun → `todo-next-weekend`; nextNextMon–nextNextFri → `todo-following-week`; beyond → `todo-future`
+
+### Drag behaviour
+
+Dragging a card to a virtual todo column updates its due date. Dragging to `todo-this-weekend` on Saturday or Sunday is a no-op (the weekend is already covered by Today/Tomorrow). Dragging to `todo` removes the due date. The card's STATUS never changes during within-todo moves.
+
+### Time-boundary crossing
+
+When the day changes while the board is open, the board re-renders with the new column layout the next time any mutation (create/update/move/delete) is performed — the server always calls `buildColumns(getNow())` and returns the fresh column set to the client.
+
+### Testing fake time
+
+Two GraphQL mutations support deterministic time-based testing:
+
+- `setTestNow(iso: String!): [Column!]!` — sets the server's fake clock and returns new columns
+- `clearTestNow: [Column!]!` — resets to real clock
+
+These are available in all environments. E2E tests use them via `request.post('/graphql', ...)`. The `resetData(now)` helper accepts an optional `now: Date` parameter so seeds can be computed relative to the same fake date.
 
 ## GraphQL API
 

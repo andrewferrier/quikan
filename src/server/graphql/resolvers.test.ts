@@ -216,73 +216,199 @@ describe('sortDoneCards', () => {
   });
 });
 
-// Tests run with TZ=UTC. now = 2026-04-01T12:00:00Z (a Wednesday).
-// Calendar: Mon 2026-03-30, Tue 2026-03-31, Wed 2026-04-01 (today), Thu 2026-04-02 (tomorrow),
-//           ...Wed 2026-04-08 (7 days out), Thu 2026-04-09 (8 days out — todo-dated).
+// Tests run with TZ=UTC.
+// NOW_WED = 2026-04-01 (Wednesday), week: Mon Mar 30 – Fri Apr 3 – Sat Apr 4 – Sun Apr 5
+// NOW_THU = 2026-04-02 (Thursday)
+// NOW_FRI = 2026-04-03 (Friday)
+// NOW_SAT = 2026-04-04 (Saturday)
+// NOW_SUN = 2026-04-05 (Sunday)
 describe('getTodoVirtualColumn', () => {
-  const NOW = new Date('2026-04-01T12:00:00Z');
+  const NOW_WED = new Date('2026-04-01T12:00:00Z'); // Wednesday
+  const NOW_THU = new Date('2026-04-02T12:00:00Z'); // Thursday
+  const NOW_FRI = new Date('2026-04-03T12:00:00Z'); // Friday
+  const NOW_SAT = new Date('2026-04-04T12:00:00Z'); // Saturday
+  const NOW_SUN = new Date('2026-04-05T12:00:00Z'); // Sunday
 
   function todoCard(id: string, due?: Date, dueHasTime?: boolean): Card {
     return { ...base, id, uid: id, due, dueHasTime };
   }
 
   it('returns "todo" for a card with no due date', () => {
-    expect(getTodoVirtualColumn(todoCard('x'), NOW)).toBe('todo');
+    expect(getTodoVirtualColumn(todoCard('x'), NOW_WED)).toBe('todo');
   });
 
-  it('returns "todo-today" for a card due today (date-only)', () => {
-    const due = new Date(Date.UTC(2026, 3, 1)); // 2026-04-01
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-today');
+  describe('today / overdue (all days)', () => {
+    it('returns "todo-today" for a card due today (date-only)', () => {
+      const due = new Date(Date.UTC(2026, 3, 1)); // Apr 1
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-today');
+    });
+
+    it('returns "todo-today" for an overdue card', () => {
+      const due = new Date(Date.UTC(2026, 2, 28)); // Mar 28
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-today');
+    });
+
+    it('returns "todo-today" for a card with datetime earlier today', () => {
+      const due = new Date('2026-04-01T09:00:00Z');
+      expect(getTodoVirtualColumn(todoCard('x', due, true), NOW_WED)).toBe('todo-today');
+    });
+
+    it('returns "todo-today" for a card with datetime later today', () => {
+      const due = new Date('2026-04-01T18:00:00Z');
+      expect(getTodoVirtualColumn(todoCard('x', due, true), NOW_WED)).toBe('todo-today');
+    });
   });
 
-  it('returns "todo-today" for an overdue card (date-only)', () => {
-    const due = new Date(Date.UTC(2026, 2, 30)); // 2026-03-30 (yesterday)
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-today');
+  describe('tomorrow (all days)', () => {
+    it('returns "todo-tomorrow" for a card due tomorrow from Wednesday', () => {
+      const due = new Date(Date.UTC(2026, 3, 2)); // Apr 2
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-tomorrow');
+    });
+
+    it('returns "todo-tomorrow" for a card due tomorrow from Friday (Saturday)', () => {
+      const due = new Date(Date.UTC(2026, 3, 4)); // Apr 4 = Saturday
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_FRI)).toBe('todo-tomorrow');
+    });
+
+    it('returns "todo-tomorrow" for a card due tomorrow from Saturday (Sunday)', () => {
+      const due = new Date(Date.UTC(2026, 3, 5)); // Apr 5 = Sunday
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-tomorrow');
+    });
   });
 
-  it('returns "todo-today" for a card with datetime earlier today', () => {
-    const due = new Date('2026-04-01T09:00:00Z');
-    expect(getTodoVirtualColumn(todoCard('x', due, true), NOW)).toBe('todo-today');
+  describe('Mon–Wed layout', () => {
+    // thisWeekFriday = Apr 3 (Mon+4 from Mar 30)
+    // thisSaturday = Apr 4, thisSunday = Apr 5
+    // nextMonday = Apr 6, nextFriday = Apr 10
+
+    it('returns "todo-this-week" for a card due on thisWeekFriday (Apr 3)', () => {
+      const due = new Date(Date.UTC(2026, 3, 3));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-this-week');
+    });
+
+    it('returns "todo-this-weekend" for a card due on Saturday (Apr 4)', () => {
+      const due = new Date(Date.UTC(2026, 3, 4));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-this-weekend');
+    });
+
+    it('returns "todo-this-weekend" for a card due on Sunday (Apr 5)', () => {
+      const due = new Date(Date.UTC(2026, 3, 5));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-this-weekend');
+    });
+
+    it('returns "todo-next-week" for a card due on nextMonday (Apr 6)', () => {
+      const due = new Date(Date.UTC(2026, 3, 6));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-next-week');
+    });
+
+    it('returns "todo-next-week" for a card due on nextFriday (Apr 10)', () => {
+      const due = new Date(Date.UTC(2026, 3, 10));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-next-week');
+    });
+
+    it('returns "todo-future" for a card due Apr 11 (after nextFriday)', () => {
+      const due = new Date(Date.UTC(2026, 3, 11));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_WED)).toBe('todo-future');
+    });
+
+    it('returns "todo-this-week" from Monday (Mar 30), due Wednesday (Apr 1)', () => {
+      const NOW_MON = new Date('2026-03-30T12:00:00Z');
+      const due = new Date(Date.UTC(2026, 3, 1)); // Apr 1 (2 days after Monday)
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_MON)).toBe('todo-this-week');
+    });
   });
 
-  it('returns "todo-today" for a card with datetime later today', () => {
-    const due = new Date('2026-04-01T18:00:00Z');
-    expect(getTodoVirtualColumn(todoCard('x', due, true), NOW)).toBe('todo-today');
+  describe('Thu–Fri layout', () => {
+    // Thursday Apr 2: tomorrow = Apr 3 (Friday = thisWeekFriday)
+    // thisSaturday = Apr 4, thisSunday = Apr 5, nextFriday = Apr 10
+
+    it('does not return "todo-this-week" for Thu — Apr 3 goes to todo-tomorrow', () => {
+      const due = new Date(Date.UTC(2026, 3, 3)); // Apr 3 = tomorrow
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-tomorrow');
+    });
+
+    it('returns "todo-this-weekend" for Apr 4 (Saturday) from Thursday', () => {
+      const due = new Date(Date.UTC(2026, 3, 4));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-this-weekend');
+    });
+
+    it('returns "todo-this-weekend" for Apr 5 (Sunday) from Thursday', () => {
+      const due = new Date(Date.UTC(2026, 3, 5));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-this-weekend');
+    });
+
+    it('returns "todo-this-weekend" for Apr 5 (Sunday) from Friday (Saturday is Tomorrow)', () => {
+      const due = new Date(Date.UTC(2026, 3, 5)); // Sunday only (Saturday=Tomorrow)
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_FRI)).toBe('todo-this-weekend');
+    });
+
+    it('returns "todo-next-week" for Apr 6 (nextMonday) from Thursday', () => {
+      const due = new Date(Date.UTC(2026, 3, 6));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-next-week');
+    });
+
+    it('returns "todo-next-week" for Apr 10 (nextFriday) from Thursday', () => {
+      const due = new Date(Date.UTC(2026, 3, 10));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-next-week');
+    });
+
+    it('returns "todo-future" for Apr 11 from Thursday', () => {
+      const due = new Date(Date.UTC(2026, 3, 11));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_THU)).toBe('todo-future');
+    });
   });
 
-  it('returns "todo-tomorrow" for a card due tomorrow (date-only)', () => {
-    const due = new Date(Date.UTC(2026, 3, 2)); // 2026-04-02
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-tomorrow');
-  });
+  describe('Sat–Sun layout', () => {
+    // Saturday Apr 4: today=thisSaturday, tomorrow=thisSunday (Apr 5)
+    // nextMonday=Apr 6, nextFriday=Apr 10, nextSaturday=Apr 11, nextSunday=Apr 12
+    // nextNextFriday=Apr 17
 
-  it('returns "todo-tomorrow" for a card with datetime tomorrow', () => {
-    const due = new Date('2026-04-02T10:00:00Z');
-    expect(getTodoVirtualColumn(todoCard('x', due, true), NOW)).toBe('todo-tomorrow');
-  });
+    it('returns "todo-this-weekend" for a card due on Sunday (Apr 5) from Saturday — but Tomorrow takes priority', () => {
+      // Apr 5 = tomorrow from Saturday, so this should be todo-tomorrow, not todo-this-weekend
+      const due = new Date(Date.UTC(2026, 3, 5));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-tomorrow');
+    });
 
-  it('returns "todo-this-week" for a card due in 2 days (date-only)', () => {
-    const due = new Date(Date.UTC(2026, 3, 3)); // 2026-04-03
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-this-week');
-  });
+    it('returns "todo-coming-week" for Apr 6 (nextMonday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 6));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-coming-week');
+    });
 
-  it('returns "todo-this-week" for a card due 6 days from now', () => {
-    const due = new Date(Date.UTC(2026, 3, 7)); // 2026-04-07 (today+6)
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-this-week');
-  });
+    it('returns "todo-coming-week" for Apr 10 (nextFriday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 10));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-coming-week');
+    });
 
-  it('returns "todo-this-week" for a card due exactly 7 days from now (<=7 boundary)', () => {
-    const due = new Date(Date.UTC(2026, 3, 8)); // 2026-04-08 (today+7)
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-this-week');
-  });
+    it('returns "todo-next-weekend" for Apr 11 (nextSaturday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 11));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-next-weekend');
+    });
 
-  it('returns "todo-dated" for a card due 8 days from now (>7 days)', () => {
-    const due = new Date(Date.UTC(2026, 3, 9)); // 2026-04-09 (today+8)
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-dated');
-  });
+    it('returns "todo-next-weekend" for Apr 12 (nextSunday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 12));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-next-weekend');
+    });
 
-  it('returns "todo-dated" for a card due far in the future', () => {
-    const due = new Date(Date.UTC(2027, 0, 1)); // 2027-01-01 (clearly >7 days)
-    expect(getTodoVirtualColumn(todoCard('x', due, false), NOW)).toBe('todo-dated');
+    it('returns "todo-following-week" for Apr 13 (nextNextMonday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 13));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-following-week');
+    });
+
+    it('returns "todo-following-week" for Apr 17 (nextNextFriday) from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 17));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-following-week');
+    });
+
+    it('returns "todo-future" for Apr 18 from Saturday', () => {
+      const due = new Date(Date.UTC(2026, 3, 18));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SAT)).toBe('todo-future');
+    });
+
+    it('returns "todo-coming-week" for Apr 7 from Sunday', () => {
+      // Sunday: today=Apr5, tomorrow=Apr6(nextMonday), coming-week=Apr7–Apr10
+      const due = new Date(Date.UTC(2026, 3, 7));
+      expect(getTodoVirtualColumn(todoCard('x', due, false), NOW_SUN)).toBe('todo-coming-week');
+    });
   });
 });
 
@@ -334,47 +460,108 @@ describe('parseRdatesInput', () => {
   });
 });
 
-// Tests run with TZ=UTC.
+// Tests run with TZ=UTC. Wednesday April 1, 2026 is used as the reference day.
+// Week: Mon Mar 30 – thisWeekFri Apr 3 – Sat Apr 4 – Sun Apr 5
+// nextMonday=Apr 6, nextFriday=Apr 10, nextSaturday=Apr 11, nextNextMonday=Apr 13
 describe('computeVirtualColumnUpdates', () => {
-  const NOW = new Date('2026-04-09T12:00:00Z');
+  const NOW_WED = new Date('2026-04-01T12:00:00Z'); // Wednesday
+  const NOW_SAT = new Date('2026-04-04T12:00:00Z'); // Saturday
+  const NOW_SUN = new Date('2026-04-05T12:00:00Z'); // Sunday
+  const NOW_FRI = new Date('2026-04-03T12:00:00Z'); // Friday
 
   it('sets due to today (UTC midnight) for todo-today', () => {
-    const result = computeVirtualColumnUpdates('todo-today', NOW);
+    const result = computeVirtualColumnUpdates('todo-today', NOW_WED);
     expect(result).not.toBe('unchanged');
     const updates = result as Partial<Card>;
     expect(updates.column).toBe('todo');
     expect(updates.dueHasTime).toBe(false);
-    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 9)));
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 1))); // Apr 1
   });
 
   it('sets due to tomorrow (UTC midnight) for todo-tomorrow', () => {
-    const result = computeVirtualColumnUpdates('todo-tomorrow', NOW);
+    const result = computeVirtualColumnUpdates('todo-tomorrow', NOW_WED);
     expect(result).not.toBe('unchanged');
     const updates = result as Partial<Card>;
-    expect(updates.column).toBe('todo');
     expect(updates.dueHasTime).toBe(false);
-    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 10)));
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 2))); // Apr 2
   });
 
-  it('sets due to today+2 (UTC midnight) for todo-this-week', () => {
-    const result = computeVirtualColumnUpdates('todo-this-week', NOW);
+  it('sets due to today+2 for todo-this-week', () => {
+    const result = computeVirtualColumnUpdates('todo-this-week', NOW_WED);
     expect(result).not.toBe('unchanged');
     const updates = result as Partial<Card>;
-    expect(updates.column).toBe('todo');
     expect(updates.dueHasTime).toBe(false);
-    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 11)));
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 3))); // Apr 3
   });
 
-  it('returns "unchanged" for todo-dated', () => {
-    expect(computeVirtualColumnUpdates('todo-dated', NOW)).toBe('unchanged');
+  it('sets due to thisSaturday for todo-this-weekend on Wednesday', () => {
+    const result = computeVirtualColumnUpdates('todo-this-weekend', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.dueHasTime).toBe(false);
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 4))); // Apr 4 (Saturday)
+  });
+
+  it('sets due to thisSunday for todo-this-weekend on Friday (Saturday is Tomorrow)', () => {
+    const result = computeVirtualColumnUpdates('todo-this-weekend', NOW_FRI);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 5))); // Apr 5 (Sunday)
+  });
+
+  it('returns "unchanged" for todo-this-weekend on Saturday', () => {
+    expect(computeVirtualColumnUpdates('todo-this-weekend', NOW_SAT)).toBe('unchanged');
+  });
+
+  it('returns "unchanged" for todo-this-weekend on Sunday', () => {
+    expect(computeVirtualColumnUpdates('todo-this-weekend', NOW_SUN)).toBe('unchanged');
+  });
+
+  it('sets due to nextMonday for todo-next-week', () => {
+    const result = computeVirtualColumnUpdates('todo-next-week', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 6))); // Apr 6
+  });
+
+  it('sets due to nextMonday for todo-coming-week', () => {
+    const result = computeVirtualColumnUpdates('todo-coming-week', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 6))); // Apr 6
+  });
+
+  it('sets due to nextSaturday for todo-next-weekend', () => {
+    const result = computeVirtualColumnUpdates('todo-next-weekend', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 11))); // Apr 11
+  });
+
+  it('sets due to nextNextMonday for todo-following-week', () => {
+    const result = computeVirtualColumnUpdates('todo-following-week', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 13))); // Apr 13
+  });
+
+  it('sets due to today+21 for todo-future', () => {
+    const result = computeVirtualColumnUpdates('todo-future', NOW_WED);
+    expect(result).not.toBe('unchanged');
+    const updates = result as Partial<Card>;
+    expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 22))); // Apr 22
   });
 
   it('clears due date for todo (no date)', () => {
-    const result = computeVirtualColumnUpdates('todo', NOW);
+    const result = computeVirtualColumnUpdates('todo', NOW_WED);
     expect(result).not.toBe('unchanged');
     const updates = result as Partial<Card>;
     expect(updates.column).toBe('todo');
     expect(updates.due).toBeUndefined();
     expect(updates.dueHasTime).toBeUndefined();
+  });
+
+  it('returns "unchanged" for unknown column', () => {
+    expect(computeVirtualColumnUpdates('todo-dated', NOW_WED)).toBe('unchanged');
   });
 });

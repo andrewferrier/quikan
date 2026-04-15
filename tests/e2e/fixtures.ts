@@ -3,7 +3,10 @@ import { resetData } from './helpers/resetData';
 
 export const test = base.extend<{ resetDatabase: void }>({
   resetDatabase: [
-    async ({}, use) => {
+    async ({ request }, use) => {
+      await request.post('/graphql', {
+        data: { query: 'mutation { clearTestNow { id } }' },
+      });
       resetData();
       await use();
     },

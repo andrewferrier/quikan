@@ -11,39 +11,189 @@ import {
 } from '../storage/vtodo.js';
 import { Card, Column } from '../types.js';
 
-const VIRTUAL_TODO_COLUMNS = [
-  { id: 'todo', name: 'Todo (No Due Date)' },
-  { id: 'todo-dated', name: 'Todo (Dated)' },
-  { id: 'todo-this-week', name: 'Todo (This Week)' },
-  { id: 'todo-tomorrow', name: 'Todo (Tomorrow)' },
-  { id: 'todo-today', name: 'Todo (Today)' },
-] as const;
+let testNow: Date | null = null;
 
-const VIRTUAL_TODO_COL_IDS = new Set<string>(VIRTUAL_TODO_COLUMNS.map((c) => c.id));
+export function getNow(): Date {
+  return testNow ?? new Date();
+}
+
+function localDayStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function addLocalDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+interface WeekBounds {
+  thisWeekFriday: Date;
+  thisSaturday: Date;
+  thisSunday: Date;
+  nextMonday: Date;
+  nextFriday: Date;
+  nextSaturday: Date;
+  nextSunday: Date;
+  nextNextMonday: Date;
+  nextNextFriday: Date;
+}
+
+function getWeekBounds(today: Date): WeekBounds {
+  const dow = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
+  const thisMonday = addLocalDays(today, -daysSinceMonday);
+  return {
+    thisWeekFriday: addLocalDays(thisMonday, 4),
+    thisSaturday: addLocalDays(thisMonday, 5),
+    thisSunday: addLocalDays(thisMonday, 6),
+    nextMonday: addLocalDays(thisMonday, 7),
+    nextFriday: addLocalDays(thisMonday, 11),
+    nextSaturday: addLocalDays(thisMonday, 12),
+    nextSunday: addLocalDays(thisMonday, 13),
+    nextNextMonday: addLocalDays(thisMonday, 14),
+    nextNextFriday: addLocalDays(thisMonday, 18),
+  };
+}
+
+interface VirtualColumnDef {
+  id: string;
+  name: string;
+}
 
 /**
- * Compute which virtual todo sub-column a todo card belongs to based on its due date.
- * Cards are categorised by how far their due date is from today (local time).
+ * Returns the ordered list of virtual todo columns for the given day.
+ * Order is from least urgent (leftmost / No Due Date) to most urgent (Today).
+ */
+function getDayColumns(now: Date): VirtualColumnDef[] {
+  const today = localDayStart(now);
+  const dow = today.getDay();
+  const isWeekend = dow === 0 || dow === 6;
+  const isMonToWed = dow >= 1 && dow <= 3;
+
+  return [
+    { id: 'todo', name: 'Todo (No Due Date)' },
+    { id: 'todo-future', name: 'Todo (Future)' },
+    ...(isWeekend
+      ? [
+          { id: 'todo-following-week', name: 'Following Week' },
+          { id: 'todo-next-weekend', name: 'Next Weekend' },
+          { id: 'todo-coming-week', name: 'Coming Week' },
+        ]
+      : [{ id: 'todo-next-week', name: 'Todo (Next Week)' }]),
+    { id: 'todo-this-weekend', name: 'Todo (This Weekend)' },
+    ...(isMonToWed ? [{ id: 'todo-this-week', name: 'Todo (This Week)' }] : []),
+    { id: 'todo-tomorrow', name: 'Todo (Tomorrow)' },
+    { id: 'todo-today', name: 'Todo (Today)' },
+  ];
+}
+
+const ALL_VIRTUAL_TODO_COL_IDS = new Set([
+  'todo',
+  'todo-today',
+  'todo-tomorrow',
+  'todo-this-week',
+  'todo-this-weekend',
+  'todo-next-week',
+  'todo-future',
+  'todo-coming-week',
+  'todo-next-weekend',
+  'todo-following-week',
+]);
+
+/**
+ * Compute which virtual todo sub-column a todo card belongs to based on its due date
+ * and the current day of week. The column set changes based on the day.
+ *
+ * - Mon–Wed: Today | Tomorrow | This Week | This Weekend | Next Week | Future | No Due Date
+ * - Thu–Fri: Today | Tomorrow | This Weekend | Next Week | Future | No Due Date
+ * - Sat–Sun: Today | Tomorrow | This Weekend | Coming Week | Next Weekend | Following Week | Future | No Due Date
  */
 export function getTodoVirtualColumn(card: Card, now: Date): string {
   if (!card.due) return 'todo';
 
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  // "This week" = today+2 through today+7 inclusive; "Future" = today+8+
-  const weekEndExclusive = new Date(todayStart);
-  weekEndExclusive.setDate(weekEndExclusive.getDate() + 8);
+  const today = localDayStart(now);
+  const tomorrow = addLocalDays(today, 1);
+  const dow = today.getDay();
+  const bounds = getWeekBounds(today);
 
-  // For datetime cards use local date components; for date-only use UTC (stored as UTC midnight)
   const dueLocalDay = card.dueHasTime
-    ? new Date(card.due.getFullYear(), card.due.getMonth(), card.due.getDate())
+    ? localDayStart(card.due)
     : new Date(card.due.getUTCFullYear(), card.due.getUTCMonth(), card.due.getUTCDate());
 
-  if (dueLocalDay < tomorrowStart) return 'todo-today';
-  if (dueLocalDay.getTime() === tomorrowStart.getTime()) return 'todo-tomorrow';
-  if (dueLocalDay < weekEndExclusive) return 'todo-this-week';
-  return 'todo-dated';
+  const dueTime = dueLocalDay.getTime();
+
+  if (dueTime <= today.getTime()) return 'todo-today';
+  if (dueTime === tomorrow.getTime()) return 'todo-tomorrow';
+
+  if (dow >= 1 && dow <= 3) {
+    // Mon–Wed
+    if (dueTime <= bounds.thisWeekFriday.getTime()) return 'todo-this-week';
+    if (dueTime <= bounds.thisSunday.getTime()) return 'todo-this-weekend';
+    if (dueTime <= bounds.nextFriday.getTime()) return 'todo-next-week';
+    return 'todo-future';
+  }
+
+  if (dow === 4 || dow === 5) {
+    // Thu–Fri
+    if (dueTime <= bounds.thisSunday.getTime()) return 'todo-this-weekend';
+    if (dueTime <= bounds.nextFriday.getTime()) return 'todo-next-week';
+    return 'todo-future';
+  }
+
+  // Sat (6) or Sun (0)
+  if (dueTime <= bounds.thisSunday.getTime()) return 'todo-this-weekend';
+  if (dueTime <= bounds.nextFriday.getTime()) return 'todo-coming-week';
+  if (dueTime <= bounds.nextSunday.getTime()) return 'todo-next-weekend';
+  if (dueTime <= bounds.nextNextFriday.getTime()) return 'todo-following-week';
+  return 'todo-future';
+}
+
+/**
+ * Compute the card field updates needed when dragging to a virtual todo column.
+ * Returns 'unchanged' for columns where the due date cannot be meaningfully set
+ * (e.g. todo-this-weekend on Saturday/Sunday when the weekend is already today/tomorrow).
+ */
+export function computeVirtualColumnUpdates(
+  targetColumn: string,
+  now: Date
+): Partial<Card> | 'unchanged' {
+  const updates: Partial<Card> = { column: 'todo' };
+  const today = localDayStart(now);
+  const dow = today.getDay();
+  const bounds = getWeekBounds(today);
+
+  const setUTCDate = (d: Date) => {
+    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    updates.dueHasTime = false;
+  };
+
+  if (targetColumn === 'todo-today') {
+    setUTCDate(today);
+  } else if (targetColumn === 'todo-tomorrow') {
+    setUTCDate(addLocalDays(today, 1));
+  } else if (targetColumn === 'todo-this-week') {
+    // today+2 always falls within the Mon–Wed "this week" range
+    setUTCDate(addLocalDays(today, 2));
+  } else if (targetColumn === 'todo-this-weekend') {
+    // On Sat/Sun the weekend is already covered by Today/Tomorrow, so no-op
+    if (dow === 6 || dow === 0) return 'unchanged';
+    // On Friday thisSaturday = tomorrow, so use Sunday instead
+    setUTCDate(dow === 5 ? bounds.thisSunday : bounds.thisSaturday);
+  } else if (targetColumn === 'todo-next-week' || targetColumn === 'todo-coming-week') {
+    setUTCDate(bounds.nextMonday);
+  } else if (targetColumn === 'todo-next-weekend') {
+    setUTCDate(bounds.nextSaturday);
+  } else if (targetColumn === 'todo-following-week') {
+    setUTCDate(bounds.nextNextMonday);
+  } else if (targetColumn === 'todo-future') {
+    setUTCDate(addLocalDays(today, 21));
+  } else if (targetColumn === 'todo') {
+    updates.due = undefined;
+    updates.dueHasTime = undefined;
+  } else {
+    return 'unchanged';
+  }
+
+  return updates;
 }
 
 function formatDueField(card: Card): string | null {
@@ -108,40 +258,6 @@ export function filterOldCompletedCards(cards: Card[], now: Date = new Date()): 
   });
 }
 
-/**
- * Compute the card field updates needed when dragging to a virtual todo column.
- * Returns 'unchanged' for `todo-dated` (a date must be set explicitly via edit).
- */
-export function computeVirtualColumnUpdates(
-  targetColumn: string,
-  now: Date
-): Partial<Card> | 'unchanged' {
-  const updates: Partial<Card> = { column: 'todo' };
-
-  if (targetColumn === 'todo-today') {
-    updates.due = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    updates.dueHasTime = false;
-  } else if (targetColumn === 'todo-tomorrow') {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 1);
-    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    updates.dueHasTime = false;
-  } else if (targetColumn === 'todo-this-week') {
-    const d = new Date(now);
-    d.setDate(d.getDate() + 2);
-    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    updates.dueHasTime = false;
-  } else if (targetColumn === 'todo-dated') {
-    return 'unchanged';
-  } else {
-    // 'todo' — no date
-    updates.due = undefined;
-    updates.dueHasTime = undefined;
-  }
-
-  return updates;
-}
-
 async function buildColumns(now: Date): Promise<Column[]> {
   const allCards = await readAllCards();
   const visibleCards = filterOldCompletedCards(allCards, now);
@@ -153,7 +269,8 @@ async function buildColumns(now: Date): Promise<Column[]> {
   const totalDone = allCards.filter((c) => c.column === 'done').length;
   const hiddenDoneCount = totalDone - doneCards.length;
 
-  const virtualTodoCols: Column[] = VIRTUAL_TODO_COLUMNS.map(({ id, name }) => ({
+  const dayColumns = getDayColumns(now);
+  const virtualTodoCols: Column[] = dayColumns.map(({ id, name }) => ({
     id,
     name,
     hiddenCount: 0,
@@ -176,7 +293,7 @@ export const resolvers = {
   Card: {
     column: (card: Card) => {
       if (card.column !== 'todo') return card.column;
-      return getTodoVirtualColumn(card, new Date());
+      return getTodoVirtualColumn(card, getNow());
     },
     due: (card: Card) => formatDueField(card),
     dueHasTime: (card: Card) => card.dueHasTime ?? null,
@@ -203,7 +320,7 @@ export const resolvers = {
     },
 
     columns: async (): Promise<Column[]> => {
-      return buildColumns(new Date());
+      return buildColumns(getNow());
     },
 
     cardClones: async (_: unknown, { id }: { id: string }): Promise<Card[]> => {
@@ -254,7 +371,7 @@ export const resolvers = {
         parseRdatesInput(rdates),
         parseRdatesInput(exdates)
       );
-      return buildColumns(new Date());
+      return buildColumns(getNow());
     },
 
     updateCard: async (
@@ -284,7 +401,7 @@ export const resolvers = {
       const updates: Partial<Card> = {};
       if (summary !== undefined) updates.summary = summary;
       if (column !== undefined) {
-        updates.column = VIRTUAL_TODO_COL_IDS.has(column) ? 'todo' : column;
+        updates.column = ALL_VIRTUAL_TODO_COL_IDS.has(column) ? 'todo' : column;
       }
       if (description !== undefined) {
         updates.description = description === null ? undefined : description;
@@ -313,27 +430,37 @@ export const resolvers = {
         updates.exdates = exdates === null ? undefined : parseRdatesInput(exdates);
       }
       await updateCardStorage(id, updates);
-      return buildColumns(new Date());
+      return buildColumns(getNow());
     },
 
     moveCard: async (
       _: unknown,
       { id, targetColumn }: { id: string; targetColumn: string }
     ): Promise<Column[]> => {
-      if (VIRTUAL_TODO_COL_IDS.has(targetColumn)) {
-        const result = computeVirtualColumnUpdates(targetColumn, new Date());
+      if (ALL_VIRTUAL_TODO_COL_IDS.has(targetColumn)) {
+        const result = computeVirtualColumnUpdates(targetColumn, getNow());
         if (result !== 'unchanged') {
           await updateCardStorage(id, result);
         }
       } else {
         await moveCardStorage(id, targetColumn);
       }
-      return buildColumns(new Date());
+      return buildColumns(getNow());
     },
 
     deleteCard: async (_: unknown, { id }: { id: string }): Promise<Column[]> => {
       await deleteCardStorage(id);
-      return buildColumns(new Date());
+      return buildColumns(getNow());
+    },
+
+    setTestNow: async (_: unknown, { iso }: { iso: string }): Promise<Column[]> => {
+      testNow = new Date(iso);
+      return buildColumns(getNow());
+    },
+
+    clearTestNow: async (): Promise<Column[]> => {
+      testNow = null;
+      return buildColumns(getNow());
     },
   },
 };

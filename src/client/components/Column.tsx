@@ -28,10 +28,15 @@ interface ColumnProps {
 
 const COLUMN_EMOJIS: Record<string, string> = {
   todo: '📋',
-  'todo-dated': '🗓️',
-  'todo-this-week': '📅',
-  'todo-tomorrow': '🌅',
   'todo-today': '🔴',
+  'todo-tomorrow': '🌅',
+  'todo-this-week': '📅',
+  'todo-this-weekend': '🏖️',
+  'todo-next-week': '📆',
+  'todo-coming-week': '📆',
+  'todo-next-weekend': '🏕️',
+  'todo-following-week': '🗓️',
+  'todo-future': '🔮',
   'in-progress': '🔄',
   done: '✅',
 };
@@ -72,7 +77,7 @@ const Column: React.FC<ColumnProps> = ({
     <div
       ref={setNodeRef}
       data-testid={`column-${id}`}
-      className={`flex-1 min-w-[300px] rounded-lg p-4 transition-colors ${isOver ? 'bg-gray-200' : 'bg-gray-100'}`}
+      className={`flex-1 min-w-0 rounded-lg p-4 transition-colors ${isOver ? 'bg-gray-200' : 'bg-gray-100'}`}
     >
       <div className="mb-4">
         <h2 className="text-lg font-semibold text-gray-700">

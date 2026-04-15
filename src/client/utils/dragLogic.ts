@@ -46,30 +46,101 @@ function formatDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+function localDayStart(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function addLocalDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
+
+interface WeekBounds {
+  thisSaturday: Date;
+  thisSunday: Date;
+  nextMonday: Date;
+  nextSaturday: Date;
+  nextNextMonday: Date;
+}
+
+function getWeekBounds(today: Date): WeekBounds {
+  const dow = today.getDay();
+  const daysToMonday = dow === 0 ? -6 : 1 - dow;
+  const thisMonday = addLocalDays(today, daysToMonday);
+  return {
+    thisSaturday: addLocalDays(thisMonday, 5),
+    thisSunday: addLocalDays(thisMonday, 6),
+    nextMonday: addLocalDays(thisMonday, 7),
+    nextSaturday: addLocalDays(thisMonday, 12),
+    nextNextMonday: addLocalDays(thisMonday, 14),
+  };
+}
+
+function toUTCDate(local: Date): Date {
+  return new Date(Date.UTC(local.getFullYear(), local.getMonth(), local.getDate()));
+}
+
 /**
  * Computes the optimistic pending move for a card drag.
  * Returns null when the server behaviour is too complex to predict locally
- * (recurring master dragged to Done, or todo-dated which is a server no-op).
+ * (e.g. recurring master dragged to Done, or todo-this-weekend on Sat/Sun which is a no-op).
  */
 export function computePendingMove(
   card: CardForPendingMove,
-  targetColumn: string
+  targetColumn: string,
+  now: Date = new Date()
 ): PendingMove | null {
   if (card.isRecurring && !card.isRecurringChild && targetColumn === 'done') return null;
-  if (targetColumn === 'todo-dated') return null;
 
-  const now = new Date();
+  const today = localDayStart(now);
+  const dow = today.getDay();
+  const bounds = getWeekBounds(today);
+
+  // On Sat/Sun, the weekend is already covered by Today/Tomorrow — server no-ops
+  if (targetColumn === 'todo-this-weekend' && (dow === 6 || dow === 0)) return null;
+
   let dueUpdate: DueUpdate;
 
   if (targetColumn === 'todo-today') {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    dueUpdate = { kind: 'set', due: formatDateOnly(d), dueHasTime: false };
+    dueUpdate = { kind: 'set', due: formatDateOnly(toUTCDate(today)), dueHasTime: false };
   } else if (targetColumn === 'todo-tomorrow') {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-    dueUpdate = { kind: 'set', due: formatDateOnly(d), dueHasTime: false };
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(addLocalDays(today, 1))),
+      dueHasTime: false,
+    };
   } else if (targetColumn === 'todo-this-week') {
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 2));
-    dueUpdate = { kind: 'set', due: formatDateOnly(d), dueHasTime: false };
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(addLocalDays(today, 2))),
+      dueHasTime: false,
+    };
+  } else if (targetColumn === 'todo-this-weekend') {
+    const target = dow === 5 ? bounds.thisSunday : bounds.thisSaturday;
+    dueUpdate = { kind: 'set', due: formatDateOnly(toUTCDate(target)), dueHasTime: false };
+  } else if (targetColumn === 'todo-next-week' || targetColumn === 'todo-coming-week') {
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(bounds.nextMonday)),
+      dueHasTime: false,
+    };
+  } else if (targetColumn === 'todo-next-weekend') {
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(bounds.nextSaturday)),
+      dueHasTime: false,
+    };
+  } else if (targetColumn === 'todo-following-week') {
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(bounds.nextNextMonday)),
+      dueHasTime: false,
+    };
+  } else if (targetColumn === 'todo-future') {
+    dueUpdate = {
+      kind: 'set',
+      due: formatDateOnly(toUTCDate(addLocalDays(today, 21))),
+      dueHasTime: false,
+    };
   } else if (targetColumn === 'todo') {
     dueUpdate = { kind: 'clear' };
   } else {
