@@ -1,4 +1,7 @@
 import { execSync } from 'child_process';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import {
   readAllCards,
   readCard,
@@ -16,7 +19,12 @@ function getGitVersion(): string {
   try {
     return execSync('git describe --tags --always', { encoding: 'utf8' }).trim();
   } catch {
-    return 'unknown';
+    try {
+      const versionFile = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'version.txt');
+      return readFileSync(versionFile, 'utf8').trim();
+    } catch {
+      return 'unknown';
+    }
   }
 }
 
