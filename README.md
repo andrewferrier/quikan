@@ -29,13 +29,13 @@ git clone https://github.com/andrewferrier/quikan.git
 cd quikan
 ```
 
-2. Start with docker-compose:
+1. Start with docker-compose:
 
 ```bash
 docker-compose up
 ```
 
-3. Open your browser at `http://localhost:4000`
+1. Open your browser at `http://localhost:4000`
 
 ### Local Development
 
@@ -53,13 +53,13 @@ git clone https://github.com/andrewferrier/quikan.git
 cd quikan
 ```
 
-2. Install dependencies:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-3. Start the development server:
+1. Start the development server:
 
 ```bash
 npm run dev
