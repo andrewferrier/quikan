@@ -9,5 +9,5 @@ services:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
-      - DATA_DIR=/app/data
+      - QUIKAN_DATA=/app/data
     restart: unless-stopped

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.resolve(__dirname, '../../../data');
+const QUIKAN_DATA = path.resolve(__dirname, '../../../data');
 const FIXTURES_DIR = path.resolve(__dirname, '../../fixtures');
 
 function localDayStart(d: Date): Date {
@@ -41,22 +41,22 @@ function makeCard(uid: string, summary: string, extras: string[] = []): string {
 }
 
 function writeDynamic(uid: string, content: string): void {
-  fs.writeFileSync(path.join(DATA_DIR, `${uid}.ics`), content, 'utf-8');
+  fs.writeFileSync(path.join(QUIKAN_DATA, `${uid}.ics`), content, 'utf-8');
 }
 
 export function resetData(now: Date = new Date()): void {
-  if (fs.existsSync(DATA_DIR)) {
-    for (const file of fs.readdirSync(DATA_DIR)) {
-      if (file.endsWith('.ics')) fs.unlinkSync(path.join(DATA_DIR, file));
+  if (fs.existsSync(QUIKAN_DATA)) {
+    for (const file of fs.readdirSync(QUIKAN_DATA)) {
+      if (file.endsWith('.ics')) fs.unlinkSync(path.join(QUIKAN_DATA, file));
     }
   } else {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.mkdirSync(QUIKAN_DATA, { recursive: true });
   }
 
   // Copy static fixtures (no date-sensitive fields)
   for (const file of fs.readdirSync(FIXTURES_DIR)) {
     if (file.endsWith('.ics')) {
-      fs.copyFileSync(path.join(FIXTURES_DIR, file), path.join(DATA_DIR, file));
+      fs.copyFileSync(path.join(FIXTURES_DIR, file), path.join(QUIKAN_DATA, file));
     }
   }
 

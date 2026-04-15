@@ -4,13 +4,16 @@ A web-based Kanban board that uses VTODO (iCalendar) files as a backend.
 
 ## Features
 
-- **VTODO Backend**: Each card is stored as a separate .ics file using the VTODO format
-- **Drag & Drop**: Intuitive drag and drop interface to move cards between columns
-- **Recurring Tasks**: Supports recurring tasks with full RFC 5545 RRULE syntax
-- **GraphQL API**: Apollo Server-based GraphQL API for efficient data fetching
-- **Modern Frontend**: React with TypeScript and TailwindCSS
+- **VTODO Backend**: Each task is stored as a separate `.ics` file using the VTODO format
+- **Smart Kanban Columns**: The *Todo* column dynamically splits into contextual sub-columns based on the current day of the week (Today, Tomorrow, This Week, This Weekend, Next Week, Future, etc.)
+- **Drag & Drop**: Move tasks between columns with an intuitive drag-and-drop interface; dragging to a date-based column automatically sets the task's due date
+- **Priorities**: Tasks can have high, medium, or low priority, rendered as colour-coded cards
+- **Due Dates**: Optional due dates with or without a time component, colour-coded by urgency
+- **Descriptions**: Optional multi-line description/notes field; URLs are rendered as clickable links
+- **Recurring Tasks**: Full RFC 5545 RRULE support with a visual recurrence editor (daily, weekly, monthly, yearly; with end-by-date or end-by-count options)
+- **Task Editing & Deletion**: Click any task to edit its summary, description, due date, priority, or recurrence rule, or delete it
+- **vdirsyncer / CalDAV Compatible**: The data directory can be synced with CalDAV servers using tools like vdirsyncer, and tasks completed by external tools (todoman, Apple iOS Reminders) are displayed correctly
 - **Dockerized**: Ready to deploy with Docker and docker-compose
-- **vdirsyncer / CalDAV Compatible**: Data directory can be synced with CalDAV servers using tools like vdirsyncer
 
 ## Recurring Tasks & Compatibility
 
@@ -37,7 +40,7 @@ docker-compose up
 
 1. Open your browser at `http://localhost:4000`
 
-### Local Development
+### Self-Hosting from Source
 
 #### Prerequisites
 
@@ -59,13 +62,19 @@ cd quikan
 npm install
 ```
 
-1. Start the development server:
+1. Build:
 
 ```bash
-npm run dev
+npm run build
 ```
 
-This will start both the backend server and the frontend development server. The application will be available at `http://localhost:5173` (frontend dev server will proxy GraphQL requests to the backend).
+1. Start the server:
+
+```bash
+npm start
+```
+
+The application will be available at `http://localhost:4000`.
 
 ## Configuration
 

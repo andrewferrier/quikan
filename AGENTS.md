@@ -6,21 +6,15 @@ This file is for AI agents to consume to understand internal details. Whenever a
 
 - **Comments**: Only add comments when they provide insight that isn't obvious from the code itself. Never add comments that just label or restate what the code does (e.g., `// Start server` above `app.listen()`). Prefer explaining *why* something is done, or clarifying genuinely non-obvious *what*, and name identifiers in a meaningful way to reduce the need for comments. In general, comments should be minimal and rare.
 
-## Finalizing Changes
-
-Before considering any change complete, always run these steps in order and fix any issues:
-
-1. `npm run format` — auto-formats all source files
-2. `npm run lint` — fixes must be made manually; no new errors should be introduced
-3. `npm run test` — all tests must pass (including Playwright E2E tests)
-4. `npm run build` — build must complete without errors
+- **Markdown**: The repo uses `.markdownlintrc` (default markdownlint rules with MD013 line-length disabled). Ordered list steps using all `1.` are intentional and valid per this config — do not change them to sequential numbers.
 
 ## Architecture
 
 - **Frontend**: React + TypeScript + TailwindCSS (`src/client/`)
 - **Backend**: Node.js + Apollo Server (GraphQL) (`src/server/`)
-- **Storage**: VTODO `.ics` files in `data/`
+- **Storage**: VTODO `.ics` files; default directory is `data/`, configurable via `QUIKAN_DATA`
 - **Build tool**: Vite
+- **TypeScript config**: Three tsconfig files — `tsconfig.json` (base/client), `tsconfig.node.json` (Vite config), `tsconfig.server.json` (server-side code)
 
 ## UI Guidelines
 
@@ -108,7 +102,7 @@ query {
   columns {
     id
     name
-    cards { id summary column sequence }
+    cards { id summary column }
   }
 }
 ```
@@ -124,15 +118,14 @@ mutation {
 
 ## npm Scripts
 
-| Command              | Description                                     |
-| -------------------- | ----------------------------------------------- |
-| `npm run dev`        | Start dev servers (backend + frontend with HMR) |
-| `npm run build`      | Build client and server for production          |
-| `npm start`          | Start production server                         |
-| `npm test`           | Run Jest unit tests                             |
-| `npm run test:e2e`   | Run Playwright E2E tests                        |
-| `npm run lint`       | Lint code                                       |
-| `npm run format`     | Format code with Prettier                       |
+| Command           | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `npm run dev`     | Start dev servers (backend + frontend with HMR) |
+| `npm run build`   | Build client and server for production          |
+| `npm start`       | Start production server                         |
+| `npm test`        | Run all tests (Jest unit tests + Playwright E2E) |
+| `npm run lint`    | Lint code                                       |
+| `npm run format`  | Format code with Prettier                       |
 
 ## Test Data
 
@@ -140,24 +133,21 @@ mutation {
 
 Unit tests (Jest, in `src/`) never touch the `data/` directory. They use either in-memory fixtures constructed inline, or temporary directories created with `os.tmpdir()` / `mkdtemp` that are cleaned up after each suite.
 
-### E2E tests (`npm run test:e2e`)
+### E2E tests
 
 E2E tests (Playwright, in `tests/e2e/`) rely on the `resetData()` helper (`tests/e2e/helpers/resetData.ts`), which should be called at the start of each test. It:
 
 1. Deletes all `.ics` files in `data/`.
-2. Copies static fixture files from `tests/fixtures/` into `data/`. These are cards whose content doesn't depend on the current date (e.g. in-progress, no-date, priority, recurring master).
-3. Programmatically generates date-relative seed cards directly in `data/` (today, tomorrow, this-week, etc.), computed relative to the `now` parameter (defaults to real time). Pass a fixed `Date` alongside `setTestNow()` for deterministic time-based tests.
+1. Copies static fixture files from `tests/fixtures/` into `data/`. These are cards whose content doesn't depend on the current date (e.g. in-progress, no-date, priority, recurring master).
+1. Programmatically generates date-relative seed cards directly in `data/` (today, tomorrow, this-week, etc.), computed relative to the `now` parameter (defaults to real time). Pass a fixed `Date` alongside `setTestNow()` for deterministic time-based tests.
 
 The `data/` directory is `.gitignore`d — it's fully reconstructed at test time. The static fixtures in `tests/fixtures/` are the source of truth for non-date-sensitive seed data.
 
-## Development Tips
+## Finalizing Changes
 
-- When an AI agent is working, it may discover that the developer has left the server running (`npm run dev`) in another process. It's OK to kill that if needed.
+Before considering any change complete, always run these steps in order and fix any issues:
 
-## TypeScript Config
-
-Three tsconfig files:
-
-- `tsconfig.json` — base / client
-- `tsconfig.node.json` — Vite config
-- `tsconfig.server.json` — server-side code
+1. `npm run format` — auto-formats all source files
+1. `npm run lint` — fixes must be made manually; no new errors should be introduced
+1. `npm test` — all tests must pass; if a dev server is already running on port 5173 (e.g. left over from a previous session), it's OK to kill it first — Playwright starts its own fresh server
+1. `npm run build` — build must complete without errors

@@ -7,7 +7,7 @@ import { dragToColumn } from './helpers/drag';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_DIR = path.resolve(__dirname, '../../data');
+const QUIKAN_DATA = path.resolve(__dirname, '../../data');
 
 function writeExternalCard(uid: string, summary: string): void {
   const content = [
@@ -23,7 +23,7 @@ function writeExternalCard(uid: string, summary: string): void {
     'END:VTODO',
     'END:VCALENDAR',
   ].join('\n');
-  fs.writeFileSync(path.join(DATA_DIR, `${uid}.ics`), content, 'utf-8');
+  fs.writeFileSync(path.join(QUIKAN_DATA, `${uid}.ics`), content, 'utf-8');
 }
 
 test.describe('external sync', () => {
