@@ -3,10 +3,9 @@ import {
   filterOldCompletedCards,
   sortDoneCards,
   getTodoVirtualColumn,
-  parseDueInput,
-  parseRdatesInput,
   computeVirtualColumnUpdates,
-} from './resolvers';
+} from './columns';
+import { parseDueInput, parseRdatesInput } from './resolvers';
 import { Card } from '../types';
 
 const base: Omit<Card, 'id' | 'uid' | 'due' | 'dueHasTime'> = {

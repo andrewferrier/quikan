@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { formatDue } from '../utils/dueDate';
+import { formatDue, DUE_COLOR_CLASS } from '../utils/dueDate';
 
 interface CardProps {
   id: string;
@@ -18,13 +18,7 @@ interface CardProps {
   onClick?: () => void;
 }
 
-const DUE_COLOR_CLASS = {
-  red: 'text-red-600',
-  green: 'text-green-600',
-  grey: 'text-gray-400',
-} as const;
-
-function priorityBgClass(priority: number | null | undefined): string {
+export function priorityBgClass(priority: number | null | undefined): string {
   if (!priority) return 'bg-white';
   if (priority >= 7) return 'bg-red-100';
   if (priority >= 4) return 'bg-yellow-100';

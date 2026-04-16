@@ -2,20 +2,7 @@ import React from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import Card from './Card';
 import { formatDue } from '../utils/dueDate';
-
-interface CardType {
-  id: string;
-  summary: string;
-  description?: string | null;
-  column: string;
-  priority?: number | null;
-  due?: string | null;
-  dueHasTime?: boolean | null;
-  completed?: string | null;
-  isRecurring?: boolean | null;
-  isRecurringChild?: boolean | null;
-  rruleText?: string | null;
-}
+import { CardType } from '../types';
 
 interface ColumnProps {
   id: string;

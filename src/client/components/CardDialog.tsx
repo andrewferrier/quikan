@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLazyQuery } from '@apollo/client/react';
 import { GET_CARD_CLONES, GET_CARD_PARENT } from '../gql/queries';
+import { formatLocalDate, addDays } from '../utils/dateUtils';
 
 // ─── RRULE helpers ───────────────────────────────────────────────────────────
 
@@ -233,50 +234,34 @@ interface CardDialogProps {
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
 
-function formatDateStr(d: Date): string {
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
 function todayStr(): string {
-  return formatDateStr(new Date());
+  return formatLocalDate(new Date());
 }
 
 function getDateShortcuts(): { label: string; value: string }[] {
   const today = new Date();
   const day = today.getDay();
 
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
   const shortcuts: { label: string; value: string }[] = [
-    { label: 'Today', value: formatDateStr(today) },
-    { label: 'Tomorrow', value: formatDateStr(tomorrow) },
+    { label: 'Today', value: formatLocalDate(today) },
+    { label: 'Tomorrow', value: formatLocalDate(addDays(today, 1)) },
   ];
 
   if (day !== 0 && day !== 6) {
-    const sat = new Date(today);
-    sat.setDate(today.getDate() + (6 - day));
-    shortcuts.push({ label: 'This Weekend', value: formatDateStr(sat) });
+    shortcuts.push({ label: 'This Weekend', value: formatLocalDate(addDays(today, 6 - day)) });
   }
 
-  const nextMon = new Date(today);
-  nextMon.setDate(today.getDate() + (day === 0 ? 1 : 8 - day));
-  shortcuts.push({ label: 'Next Week', value: formatDateStr(nextMon) });
+  shortcuts.push({
+    label: 'Next Week',
+    value: formatLocalDate(addDays(today, day === 0 ? 1 : 8 - day)),
+  });
 
   return shortcuts;
 }
 
 function utcToLocal(iso: string): { date: string; time: string } {
   const d = new Date(iso);
-  const date = [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0'),
-  ].join('-');
+  const date = formatLocalDate(d);
   const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   return { date, time };
 }
@@ -380,6 +365,38 @@ const smallInputClass =
   'w-16 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
 const labelClass = 'block text-sm font-medium text-gray-700 mb-1';
 
+interface ButtonGroupOption {
+  value: string;
+  label: string;
+  base: string;
+  active: string;
+}
+
+function ButtonGroup({
+  options,
+  value,
+  onChange,
+}: {
+  options: ButtonGroupOption[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      {options.map(({ value: optValue, label, base, active }) => (
+        <button
+          key={optValue}
+          type="button"
+          onClick={() => onChange(optValue)}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${value === optValue ? `${active} ring-2 ring-offset-1 ring-current` : `bg-white ${base} hover:bg-gray-50`}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function DateListEditor({
   label,
   dates,
@@ -429,6 +446,303 @@ function DateListEditor({
 
 // ─── CardDialog component ─────────────────────────────────────────────────────
 
+interface RRuleEditorProps {
+  isRecurring: boolean;
+  onToggle: (v: boolean) => void;
+  rruleState: RRuleState;
+  onUpdate: (patch: Partial<RRuleState>) => void;
+  rdates: string[];
+  onRdatesChange: (dates: string[]) => void;
+  exdates: string[];
+  onExdatesChange: (dates: string[]) => void;
+  hasUnsupportedRRule: boolean;
+  unsupportedRRuleStr?: string;
+}
+
+function RRuleEditor({
+  isRecurring,
+  onToggle,
+  rruleState,
+  onUpdate,
+  rdates,
+  onRdatesChange,
+  exdates,
+  onExdatesChange,
+  hasUnsupportedRRule,
+  unsupportedRRuleStr,
+}: RRuleEditorProps) {
+  const toggleWeekday = (key: string) =>
+    onUpdate({
+      weekdays: rruleState.weekdays.includes(key)
+        ? rruleState.weekdays.filter((w) => w !== key)
+        : [...rruleState.weekdays, key],
+    });
+  return (
+    <div className="mb-4 border border-gray-200 rounded-md p-4">
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none mb-3">
+        <input
+          type="checkbox"
+          checked={isRecurring}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="rounded"
+          disabled={hasUnsupportedRRule}
+        />
+        Recurring task
+      </label>
+
+      {hasUnsupportedRRule && (
+        <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
+          <p className="font-medium mb-1">⚠ Advanced recurrence rule</p>
+          <p className="text-xs text-yellow-700 mb-1">
+            This rule uses features not editable in Quikan. It will be preserved as-is.
+          </p>
+          <code className="text-xs font-mono break-all">{unsupportedRRuleStr}</code>
+        </div>
+      )}
+
+      {isRecurring && !hasUnsupportedRRule && (
+        <>
+          {/* Frequency + interval */}
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="text-sm text-gray-600">Every</span>
+            <input
+              type="number"
+              min={1}
+              value={rruleState.interval}
+              onChange={(e) =>
+                onUpdate({ interval: Math.max(1, parseInt(e.target.value, 10) || 1) })
+              }
+              className={smallInputClass}
+            />
+            <select
+              value={rruleState.freq}
+              onChange={(e) => onUpdate({ freq: e.target.value as RRuleState['freq'] })}
+              className={smallSelectClass}
+            >
+              <option value="DAILY">day(s)</option>
+              <option value="WEEKLY">week(s)</option>
+              <option value="MONTHLY">month(s)</option>
+              <option value="YEARLY">year(s)</option>
+            </select>
+            <span className="sr-only">{FREQ_LABELS[rruleState.freq]}</span>
+          </div>
+
+          {/* Weekly: day-of-week checkboxes */}
+          {rruleState.freq === 'WEEKLY' && (
+            <div className="mb-3">
+              <span className="text-sm text-gray-600 mb-1 block">On</span>
+              <div className="flex gap-1">
+                {WEEKDAYS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleWeekday(key)}
+                    className={`w-8 h-8 rounded-full text-xs font-medium border transition-colors ${rruleState.weekdays.includes(key) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly: day or weekday */}
+          {rruleState.freq === 'MONTHLY' && (
+            <div className="mb-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={rruleState.monthMode === 'day'}
+                  onChange={() => onUpdate({ monthMode: 'day' })}
+                />
+                <span>On day</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={rruleState.monthDay}
+                  onChange={(e) =>
+                    onUpdate({
+                      monthDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)),
+                    })
+                  }
+                  className={smallInputClass}
+                  disabled={rruleState.monthMode !== 'day'}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={rruleState.monthMode === 'weekday'}
+                  onChange={() => onUpdate({ monthMode: 'weekday' })}
+                />
+                <span>On the</span>
+                <select
+                  value={rruleState.monthOrdinal}
+                  onChange={(e) => onUpdate({ monthOrdinal: e.target.value })}
+                  className={smallSelectClass}
+                  disabled={rruleState.monthMode !== 'weekday'}
+                >
+                  {ORDINALS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={rruleState.monthWeekday}
+                  onChange={(e) => onUpdate({ monthWeekday: e.target.value })}
+                  className={smallSelectClass}
+                  disabled={rruleState.monthMode !== 'weekday'}
+                >
+                  {WEEKDAYS.map((w) => (
+                    <option key={w.key} value={w.key}>
+                      {w.key}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {/* Yearly: month + day or weekday */}
+          {rruleState.freq === 'YEARLY' && (
+            <div className="mb-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-600">In</span>
+                <select
+                  value={rruleState.yearMonth}
+                  onChange={(e) => onUpdate({ yearMonth: parseInt(e.target.value, 10) })}
+                  className={smallSelectClass}
+                >
+                  {MONTH_NAMES.map((m, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={rruleState.yearMode === 'day'}
+                  onChange={() => onUpdate({ yearMode: 'day' })}
+                />
+                <span>On day</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={rruleState.yearDay}
+                  onChange={(e) =>
+                    onUpdate({
+                      yearDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)),
+                    })
+                  }
+                  className={smallInputClass}
+                  disabled={rruleState.yearMode !== 'day'}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="radio"
+                  checked={rruleState.yearMode === 'weekday'}
+                  onChange={() => onUpdate({ yearMode: 'weekday' })}
+                />
+                <span>On the</span>
+                <select
+                  value={rruleState.yearOrdinal}
+                  onChange={(e) => onUpdate({ yearOrdinal: e.target.value })}
+                  className={smallSelectClass}
+                  disabled={rruleState.yearMode !== 'weekday'}
+                >
+                  {ORDINALS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={rruleState.yearWeekday}
+                  onChange={(e) => onUpdate({ yearWeekday: e.target.value })}
+                  className={smallSelectClass}
+                  disabled={rruleState.yearMode !== 'weekday'}
+                >
+                  {WEEKDAYS.map((w) => (
+                    <option key={w.key} value={w.key}>
+                      {w.key}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {/* Ends */}
+          <div className="mb-3 space-y-2">
+            <span className="text-sm text-gray-600 block">Ends</span>
+            {(['never', 'count', 'until'] as const).map((type) => (
+              <label
+                key={type}
+                className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  checked={rruleState.endsType === type}
+                  onChange={() => onUpdate({ endsType: type })}
+                />
+                {type === 'never' && 'Never'}
+                {type === 'count' && (
+                  <>
+                    After
+                    <input
+                      type="number"
+                      min={1}
+                      value={rruleState.count}
+                      onChange={(e) =>
+                        onUpdate({ count: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                      }
+                      className={smallInputClass}
+                      disabled={rruleState.endsType !== 'count'}
+                    />
+                    occurrences
+                  </>
+                )}
+                {type === 'until' && (
+                  <>
+                    On
+                    <input
+                      type="date"
+                      value={rruleState.until}
+                      onChange={(e) => onUpdate({ until: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      disabled={rruleState.endsType !== 'until'}
+                    />
+                  </>
+                )}
+              </label>
+            ))}
+          </div>
+
+          {/* RDates / EXDates */}
+          <div className="border-t border-gray-100 pt-3 mt-3">
+            <DateListEditor
+              label="Additional dates (RDATEs)"
+              dates={rdates}
+              onChange={onRdatesChange}
+            />
+            <DateListEditor
+              label="Excluded dates (EXDATEs)"
+              dates={exdates}
+              onChange={onExdatesChange}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 const CardDialog: React.FC<CardDialogProps> = ({
   isOpen,
   title,
@@ -464,11 +778,6 @@ const CardDialog: React.FC<CardDialogProps> = ({
   const setDueTime = (v: string) => setForm((f) => ({ ...f, dueTime: v }));
   const setIncludeTime = (v: boolean) => setForm((f) => ({ ...f, includeTime: v }));
   const setIsRecurring = (v: boolean) => setForm((f) => ({ ...f, isRecurring: v }));
-  const setRRuleState = (updater: RRuleState | ((s: RRuleState) => RRuleState)) =>
-    setForm((f) => ({
-      ...f,
-      rruleState: typeof updater === 'function' ? updater(f.rruleState) : updater,
-    }));
   const setRdates = (v: string[]) => setForm((f) => ({ ...f, rdates: v }));
   const setExdates = (v: string[]) => setForm((f) => ({ ...f, exdates: v }));
 
@@ -510,15 +819,6 @@ const CardDialog: React.FC<CardDialogProps> = ({
   ]);
 
   if (!isOpen) return null;
-
-  const updateRRule = (patch: Partial<RRuleState>) => setRRuleState((s) => ({ ...s, ...patch }));
-
-  const toggleWeekday = (key: string) =>
-    updateRRule({
-      weekdays: rruleState.weekdays.includes(key)
-        ? rruleState.weekdays.filter((w) => w !== key)
-        : [...rruleState.weekdays, key],
-    });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -597,83 +897,65 @@ const CardDialog: React.FC<CardDialogProps> = ({
           {/* Column */}
           <div className="mb-4">
             <span className="block text-sm font-medium text-gray-700 mb-2">Status</span>
-            <div className="flex gap-2">
-              {(
-                [
-                  {
-                    value: 'todo',
-                    label: 'Todo',
-                    base: 'border-gray-400 text-gray-600',
-                    active: 'bg-gray-600 border-gray-600 text-white',
-                  },
-                  {
-                    value: 'in-progress',
-                    label: 'In Progress',
-                    base: 'border-blue-400 text-blue-600',
-                    active: 'bg-blue-600 border-blue-600 text-white',
-                  },
-                  {
-                    value: 'done',
-                    label: 'Done',
-                    base: 'border-green-400 text-green-600',
-                    active: 'bg-green-600 border-green-600 text-white',
-                  },
-                ] as const
-              ).map(({ value, label, base, active }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setColumn(value)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${column === value ? `${active} ring-2 ring-offset-1 ring-current` : `bg-white ${base} hover:bg-gray-50`}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <ButtonGroup
+              value={column}
+              onChange={setColumn}
+              options={[
+                {
+                  value: 'todo',
+                  label: 'Todo',
+                  base: 'border-gray-400 text-gray-600',
+                  active: 'bg-gray-600 border-gray-600 text-white',
+                },
+                {
+                  value: 'in-progress',
+                  label: 'In Progress',
+                  base: 'border-blue-400 text-blue-600',
+                  active: 'bg-blue-600 border-blue-600 text-white',
+                },
+                {
+                  value: 'done',
+                  label: 'Done',
+                  base: 'border-green-400 text-green-600',
+                  active: 'bg-green-600 border-green-600 text-white',
+                },
+              ]}
+            />
           </div>
 
           {/* Priority */}
           <div className="mb-4">
             <span className="block text-sm font-medium text-gray-700 mb-2">Priority</span>
-            <div className="flex gap-2">
-              {(
-                [
-                  {
-                    value: '',
-                    label: 'None',
-                    base: 'border-gray-300 text-gray-500',
-                    active: 'bg-gray-600 border-gray-600 text-white',
-                  },
-                  {
-                    value: 'low',
-                    label: 'Low',
-                    base: 'border-blue-300 text-blue-600',
-                    active: 'bg-blue-600 border-blue-600 text-white',
-                  },
-                  {
-                    value: 'medium',
-                    label: 'Medium',
-                    base: 'border-yellow-400 text-yellow-700',
-                    active: 'bg-yellow-500 border-yellow-500 text-white',
-                  },
-                  {
-                    value: 'high',
-                    label: 'High',
-                    base: 'border-red-300 text-red-600',
-                    active: 'bg-red-600 border-red-600 text-white',
-                  },
-                ] as const
-              ).map(({ value, label, base, active }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPrioritySelect(value)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${prioritySelect === value ? `${active} ring-2 ring-offset-1 ring-current` : `bg-white ${base} hover:bg-gray-50`}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <ButtonGroup
+              value={prioritySelect}
+              onChange={setPrioritySelect}
+              options={[
+                {
+                  value: '',
+                  label: 'None',
+                  base: 'border-gray-300 text-gray-500',
+                  active: 'bg-gray-600 border-gray-600 text-white',
+                },
+                {
+                  value: 'low',
+                  label: 'Low',
+                  base: 'border-blue-300 text-blue-600',
+                  active: 'bg-blue-600 border-blue-600 text-white',
+                },
+                {
+                  value: 'medium',
+                  label: 'Medium',
+                  base: 'border-yellow-400 text-yellow-700',
+                  active: 'bg-yellow-500 border-yellow-500 text-white',
+                },
+                {
+                  value: 'high',
+                  label: 'High',
+                  base: 'border-red-300 text-red-600',
+                  active: 'bg-red-600 border-red-600 text-white',
+                },
+              ]}
+            />
           </div>
 
           {/* Due date */}
@@ -767,273 +1049,20 @@ const CardDialog: React.FC<CardDialogProps> = ({
 
           {/* Recurrence section (not shown for child cards) */}
           {!isChild && (
-            <div className="mb-4 border border-gray-200 rounded-md p-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer select-none mb-3">
-                <input
-                  type="checkbox"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                  className="rounded"
-                  disabled={hasUnsupportedRRule}
-                />
-                Recurring task
-              </label>
-
-              {hasUnsupportedRRule && (
-                <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
-                  <p className="font-medium mb-1">⚠ Advanced recurrence rule</p>
-                  <p className="text-xs text-yellow-700 mb-1">
-                    This rule uses features not editable in Quikan. It will be preserved as-is.
-                  </p>
-                  <code className="text-xs font-mono break-all">{initialValues?.rrule}</code>
-                </div>
-              )}
-
-              {isRecurring && !hasUnsupportedRRule && (
-                <>
-                  {/* Frequency + interval */}
-                  <div className="flex items-center gap-2 mb-3 flex-wrap">
-                    <span className="text-sm text-gray-600">Every</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={rruleState.interval}
-                      onChange={(e) =>
-                        updateRRule({ interval: Math.max(1, parseInt(e.target.value, 10) || 1) })
-                      }
-                      className={smallInputClass}
-                    />
-                    <select
-                      value={rruleState.freq}
-                      onChange={(e) => updateRRule({ freq: e.target.value as RRuleState['freq'] })}
-                      className={smallSelectClass}
-                    >
-                      <option value="DAILY">day(s)</option>
-                      <option value="WEEKLY">week(s)</option>
-                      <option value="MONTHLY">month(s)</option>
-                      <option value="YEARLY">year(s)</option>
-                    </select>
-                    <span className="sr-only">{FREQ_LABELS[rruleState.freq]}</span>
-                  </div>
-
-                  {/* Weekly: day-of-week checkboxes */}
-                  {rruleState.freq === 'WEEKLY' && (
-                    <div className="mb-3">
-                      <span className="text-sm text-gray-600 mb-1 block">On</span>
-                      <div className="flex gap-1">
-                        {WEEKDAYS.map(({ key, label }) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => toggleWeekday(key)}
-                            className={`w-8 h-8 rounded-full text-xs font-medium border transition-colors ${rruleState.weekdays.includes(key) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Monthly: day or weekday */}
-                  {rruleState.freq === 'MONTHLY' && (
-                    <div className="mb-3 space-y-2">
-                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={rruleState.monthMode === 'day'}
-                          onChange={() => updateRRule({ monthMode: 'day' })}
-                        />
-                        <span>On day</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={rruleState.monthDay}
-                          onChange={(e) =>
-                            updateRRule({
-                              monthDay: Math.min(
-                                31,
-                                Math.max(1, parseInt(e.target.value, 10) || 1)
-                              ),
-                            })
-                          }
-                          className={smallInputClass}
-                          disabled={rruleState.monthMode !== 'day'}
-                        />
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={rruleState.monthMode === 'weekday'}
-                          onChange={() => updateRRule({ monthMode: 'weekday' })}
-                        />
-                        <span>On the</span>
-                        <select
-                          value={rruleState.monthOrdinal}
-                          onChange={(e) => updateRRule({ monthOrdinal: e.target.value })}
-                          className={smallSelectClass}
-                          disabled={rruleState.monthMode !== 'weekday'}
-                        >
-                          {ORDINALS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={rruleState.monthWeekday}
-                          onChange={(e) => updateRRule({ monthWeekday: e.target.value })}
-                          className={smallSelectClass}
-                          disabled={rruleState.monthMode !== 'weekday'}
-                        >
-                          {WEEKDAYS.map((w) => (
-                            <option key={w.key} value={w.key}>
-                              {w.key}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Yearly: month + day or weekday */}
-                  {rruleState.freq === 'YEARLY' && (
-                    <div className="mb-3 space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-gray-600">In</span>
-                        <select
-                          value={rruleState.yearMonth}
-                          onChange={(e) => updateRRule({ yearMonth: parseInt(e.target.value, 10) })}
-                          className={smallSelectClass}
-                        >
-                          {MONTH_NAMES.map((m, i) => (
-                            <option key={i + 1} value={i + 1}>
-                              {m}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={rruleState.yearMode === 'day'}
-                          onChange={() => updateRRule({ yearMode: 'day' })}
-                        />
-                        <span>On day</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={rruleState.yearDay}
-                          onChange={(e) =>
-                            updateRRule({
-                              yearDay: Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)),
-                            })
-                          }
-                          className={smallInputClass}
-                          disabled={rruleState.yearMode !== 'day'}
-                        />
-                      </label>
-                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                        <input
-                          type="radio"
-                          checked={rruleState.yearMode === 'weekday'}
-                          onChange={() => updateRRule({ yearMode: 'weekday' })}
-                        />
-                        <span>On the</span>
-                        <select
-                          value={rruleState.yearOrdinal}
-                          onChange={(e) => updateRRule({ yearOrdinal: e.target.value })}
-                          className={smallSelectClass}
-                          disabled={rruleState.yearMode !== 'weekday'}
-                        >
-                          {ORDINALS.map((o) => (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={rruleState.yearWeekday}
-                          onChange={(e) => updateRRule({ yearWeekday: e.target.value })}
-                          className={smallSelectClass}
-                          disabled={rruleState.yearMode !== 'weekday'}
-                        >
-                          {WEEKDAYS.map((w) => (
-                            <option key={w.key} value={w.key}>
-                              {w.key}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
-                  )}
-
-                  {/* Ends */}
-                  <div className="mb-3 space-y-2">
-                    <span className="text-sm text-gray-600 block">Ends</span>
-                    {(['never', 'count', 'until'] as const).map((type) => (
-                      <label
-                        key={type}
-                        className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          checked={rruleState.endsType === type}
-                          onChange={() => updateRRule({ endsType: type })}
-                        />
-                        {type === 'never' && 'Never'}
-                        {type === 'count' && (
-                          <>
-                            After
-                            <input
-                              type="number"
-                              min={1}
-                              value={rruleState.count}
-                              onChange={(e) =>
-                                updateRRule({
-                                  count: Math.max(1, parseInt(e.target.value, 10) || 1),
-                                })
-                              }
-                              className={smallInputClass}
-                              disabled={rruleState.endsType !== 'count'}
-                            />
-                            occurrences
-                          </>
-                        )}
-                        {type === 'until' && (
-                          <>
-                            On
-                            <input
-                              type="date"
-                              value={rruleState.until}
-                              onChange={(e) => updateRRule({ until: e.target.value })}
-                              className="px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              disabled={rruleState.endsType !== 'until'}
-                            />
-                          </>
-                        )}
-                      </label>
-                    ))}
-                  </div>
-
-                  {/* RDates / EXDates */}
-                  <div className="border-t border-gray-100 pt-3 mt-3">
-                    <DateListEditor
-                      label="Additional dates (RDATEs)"
-                      dates={rdates}
-                      onChange={setRdates}
-                    />
-                    <DateListEditor
-                      label="Excluded dates (EXDATEs)"
-                      dates={exdates}
-                      onChange={setExdates}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
+            <RRuleEditor
+              isRecurring={isRecurring}
+              onToggle={setIsRecurring}
+              rruleState={rruleState}
+              onUpdate={(patch) =>
+                setForm((f) => ({ ...f, rruleState: { ...f.rruleState, ...patch } }))
+              }
+              rdates={rdates}
+              onRdatesChange={setRdates}
+              exdates={exdates}
+              onExdatesChange={setExdates}
+              hasUnsupportedRRule={hasUnsupportedRRule}
+              unsupportedRRuleStr={initialValues?.rrule}
+            />
           )}
 
           {/* Parent/clone links (edit mode only) */}

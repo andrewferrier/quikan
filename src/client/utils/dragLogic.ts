@@ -2,6 +2,8 @@
  * Pure drag-and-drop logic — extracted for testability.
  */
 
+import { localDayStart, addDays } from './dateUtils';
+
 export interface DraggableCard {
   id: string;
   column: string;
@@ -46,14 +48,6 @@ function formatDateOnly(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function localDayStart(now: Date): Date {
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function addLocalDays(d: Date, n: number): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-}
-
 interface WeekBounds {
   thisSaturday: Date;
   thisSunday: Date;
@@ -64,14 +58,13 @@ interface WeekBounds {
 
 function getWeekBounds(today: Date): WeekBounds {
   const dow = today.getDay();
-  const daysToMonday = dow === 0 ? -6 : 1 - dow;
-  const thisMonday = addLocalDays(today, daysToMonday);
+  const thisMonday = addDays(today, dow === 0 ? -6 : 1 - dow);
   return {
-    thisSaturday: addLocalDays(thisMonday, 5),
-    thisSunday: addLocalDays(thisMonday, 6),
-    nextMonday: addLocalDays(thisMonday, 7),
-    nextSaturday: addLocalDays(thisMonday, 12),
-    nextNextMonday: addLocalDays(thisMonday, 14),
+    thisSaturday: addDays(thisMonday, 5),
+    thisSunday: addDays(thisMonday, 6),
+    nextMonday: addDays(thisMonday, 7),
+    nextSaturday: addDays(thisMonday, 12),
+    nextNextMonday: addDays(thisMonday, 14),
   };
 }
 
@@ -105,13 +98,13 @@ export function computePendingMove(
   } else if (targetColumn === 'todo-tomorrow') {
     dueUpdate = {
       kind: 'set',
-      due: formatDateOnly(toUTCDate(addLocalDays(today, 1))),
+      due: formatDateOnly(toUTCDate(addDays(today, 1))),
       dueHasTime: false,
     };
   } else if (targetColumn === 'todo-this-week') {
     dueUpdate = {
       kind: 'set',
-      due: formatDateOnly(toUTCDate(addLocalDays(today, 2))),
+      due: formatDateOnly(toUTCDate(addDays(today, 2))),
       dueHasTime: false,
     };
   } else if (targetColumn === 'todo-this-weekend') {
@@ -138,7 +131,7 @@ export function computePendingMove(
   } else if (targetColumn === 'todo-future') {
     dueUpdate = {
       kind: 'set',
-      due: formatDateOnly(toUTCDate(addLocalDays(today, 21))),
+      due: formatDateOnly(toUTCDate(addDays(today, 21))),
       dueHasTime: false,
     };
   } else if (targetColumn === 'todo') {

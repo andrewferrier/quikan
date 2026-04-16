@@ -547,17 +547,20 @@ export async function deleteCard(id: string): Promise<void> {
   await fs.unlink(path.join(getDataDir(), `${id}.ics`));
 }
 
-export async function createCard(
-  summary: string,
-  column: string,
-  due?: Date,
-  dueHasTime?: boolean,
-  priority?: number,
-  description?: string,
-  rrule?: string,
-  rdates?: Date[],
-  exdates?: Date[]
-): Promise<Card> {
+export interface CreateCardOptions {
+  summary: string;
+  column: string;
+  due?: Date;
+  dueHasTime?: boolean;
+  priority?: number;
+  description?: string;
+  rrule?: string;
+  rdates?: Date[];
+  exdates?: Date[];
+}
+
+export async function createCard(opts: CreateCardOptions): Promise<Card> {
+  const { summary, column, due, dueHasTime, priority, description, rrule, rdates, exdates } = opts;
   const id = uuidv4();
   const card: Card = {
     id,

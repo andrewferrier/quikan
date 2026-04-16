@@ -527,7 +527,7 @@ describe('VTODO Storage', () => {
 
     it('createCard writes CREATED and LAST-MODIFIED close to now', async () => {
       const before = Date.now();
-      const card = await createCard('New Card', 'todo');
+      const card = await createCard({ summary: 'New Card', column: 'todo' });
       const after = Date.now();
 
       expect(card.created.getTime()).toBeGreaterThanOrEqual(before - 100);
@@ -542,7 +542,7 @@ describe('VTODO Storage', () => {
     });
 
     it('updateCard updates LAST-MODIFIED and persists it', async () => {
-      const card = await createCard('Update Test', 'todo');
+      const card = await createCard({ summary: 'Update Test', column: 'todo' });
       const originalModified = card.modified.getTime();
 
       await new Promise((r) => setTimeout(r, 10));
@@ -557,7 +557,7 @@ describe('VTODO Storage', () => {
     });
 
     it('moveCard to done sets completed and writes COMPLETED to disk', async () => {
-      const card = await createCard('To Done', 'todo');
+      const card = await createCard({ summary: 'To Done', column: 'todo' });
       expect(card.completed).toBeUndefined();
 
       const moved = await moveCard(card.id, 'done');
@@ -573,7 +573,7 @@ describe('VTODO Storage', () => {
     });
 
     it('moveCard away from done clears completed and removes COMPLETED from disk', async () => {
-      const card = await createCard('Back To Todo', 'done');
+      const card = await createCard({ summary: 'Back To Todo', column: 'done' });
       await updateCard(card.id, { column: 'done' });
 
       const moved = await moveCard(card.id, 'todo');
@@ -590,7 +590,7 @@ describe('VTODO Storage', () => {
     });
 
     it('updateCard without column change preserves completed', async () => {
-      const card = await createCard('Preserve Completed', 'todo');
+      const card = await createCard({ summary: 'Preserve Completed', column: 'todo' });
       const movedToDone = await moveCard(card.id, 'done');
       const completedAt = movedToDone!.completed!;
 
@@ -604,7 +604,7 @@ describe('VTODO Storage', () => {
     });
 
     it('LAST-MODIFIED in .ics matches the returned card.modified after update', async () => {
-      const card = await createCard('Metadata Sync', 'todo');
+      const card = await createCard({ summary: 'Metadata Sync', column: 'todo' });
       await new Promise((r) => setTimeout(r, 10));
 
       const updated = await updateCard(card.id, { summary: 'Synced' });
@@ -615,7 +615,7 @@ describe('VTODO Storage', () => {
     });
 
     it('deleteCard removes the card from disk', async () => {
-      const card = await createCard('To Delete', 'todo');
+      const card = await createCard({ summary: 'To Delete', column: 'todo' });
       const filePath = nodePath.join(tempDir, `${card.id}.ics`);
 
       await deleteCard(card.id);
@@ -1059,15 +1059,13 @@ describe('createCompletedClone', () => {
   });
 
   it('creates a clone with a new id AND new uid (not master uid)', async () => {
-    const master = await createCard(
-      'Weekly task',
-      'todo',
-      new Date('2026-04-07T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly task',
+      column: 'todo',
+      due: new Date('2026-04-07T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
     const clone = await createCompletedClone(master, 'done');
 
     expect(clone.id).not.toBe(master.id);
@@ -1079,15 +1077,13 @@ describe('createCompletedClone', () => {
   });
 
   it('clone created for in-progress target is not completed', async () => {
-    const master = await createCard(
-      'Weekly task',
-      'todo',
-      new Date('2026-04-07T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly task',
+      column: 'todo',
+      due: new Date('2026-04-07T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
     const clone = await createCompletedClone(master, 'in-progress');
 
     expect(clone.column).toBe('in-progress');
@@ -1095,15 +1091,13 @@ describe('createCompletedClone', () => {
   });
 
   it('clone is persisted to disk with correct fields', async () => {
-    const master = await createCard(
-      'Weekly task',
-      'todo',
-      new Date('2026-04-07T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly task',
+      column: 'todo',
+      due: new Date('2026-04-07T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
     const clone = await createCompletedClone(master, 'done');
 
     const read = await readCard(clone.id);
@@ -1133,15 +1127,13 @@ describe('moveCard for recurring masters', () => {
   });
 
   it('creates a completed clone and advances master DUE when moved to done', async () => {
-    const master = await createCard(
-      'Weekly standup',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'), // Monday Apr 6
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly standup',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
 
     const result = await moveCard(master.id, 'done');
 
@@ -1158,15 +1150,13 @@ describe('moveCard for recurring masters', () => {
   });
 
   it('creates a clone in in-progress and advances master DUE', async () => {
-    const master = await createCard(
-      'Weekly standup',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly standup',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
 
     const result = await moveCard(master.id, 'in-progress');
     expect(result!.column).toBe('in-progress');
@@ -1178,15 +1168,13 @@ describe('moveCard for recurring masters', () => {
   });
 
   it('moves a clone card normally (no clone-of-clone)', async () => {
-    const master = await createCard(
-      'Weekly standup',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly standup',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
 
     // Trigger master → clone creation via moveCard (also advances master DUE)
     const clone = await moveCard(master.id, 'in-progress');
@@ -1207,15 +1195,13 @@ describe('moveCard for recurring masters', () => {
 
   it('completes master when series is exhausted', async () => {
     // COUNT=1 means only one instance; after completing it, no next instance
-    const master = await createCard(
-      'One-time recurring',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;COUNT=1;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'One-time recurring',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;COUNT=1;BYDAY=MO',
+    });
 
     await moveCard(master.id, 'done');
 
@@ -1225,7 +1211,7 @@ describe('moveCard for recurring masters', () => {
   });
 
   it('non-recurring card is moved normally (no clone created)', async () => {
-    const plain = await createCard('Plain task', 'todo');
+    const plain = await createCard({ summary: 'Plain task', column: 'todo' });
     const result = await moveCard(plain.id, 'done');
 
     expect(result!.id).toBe(plain.id);
@@ -1239,7 +1225,7 @@ describe('moveCard for recurring masters', () => {
 
   it('unsupported RRULE causes master to move normally (no clone created)', async () => {
     // Create master with unsupported RRULE manually
-    const master = await createCard('Hourly task', 'todo');
+    const master = await createCard({ summary: 'Hourly task', column: 'todo' });
     // Patch in an unsupported rrule by directly updating the card object
     await writeCard({ ...master, rrule: 'FREQ=HOURLY', rruleSupported: false });
 
@@ -1268,19 +1254,17 @@ describe('readClonesOf and readParentOf', () => {
   });
 
   it('readClonesOf returns clones with matching quikanRecurrenceId', async () => {
-    const master = await createCard(
-      'Weekly',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
     await createCompletedClone(master, 'done');
     await createCompletedClone(master, 'done');
     // Also create an unrelated card
-    await createCard('Unrelated', 'todo');
+    await createCard({ summary: 'Unrelated', column: 'todo' });
 
     const clones = await readClonesOf(master.uid);
     expect(clones).toHaveLength(2);
@@ -1289,21 +1273,19 @@ describe('readClonesOf and readParentOf', () => {
   });
 
   it('readClonesOf returns empty array when no clones exist', async () => {
-    const master = await createCard('Solo task', 'todo');
+    const master = await createCard({ summary: 'Solo task', column: 'todo' });
     const clones = await readClonesOf(master.uid);
     expect(clones).toHaveLength(0);
   });
 
   it('readParentOf returns the master (card without quikanRecurrenceId, matching uid)', async () => {
-    const master = await createCard(
-      'Weekly',
-      'todo',
-      new Date('2026-04-06T00:00:00.000Z'),
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+    const master = await createCard({
+      summary: 'Weekly',
+      column: 'todo',
+      due: new Date('2026-04-06T00:00:00.000Z'),
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
     await createCompletedClone(master, 'done');
 
     const found = await readParentOf(master.uid);
@@ -1337,15 +1319,13 @@ describe('createCard with RRULE', () => {
 
   it('sets dtstart = due when rrule is provided', async () => {
     const due = new Date('2026-04-06T00:00:00.000Z');
-    const card = await createCard(
-      'Weekly',
-      'todo',
+    const card = await createCard({
+      summary: 'Weekly',
+      column: 'todo',
       due,
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
 
     expect(card.dtstart!.toISOString()).toBe(due.toISOString());
     expect(card.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');
@@ -1354,15 +1334,13 @@ describe('createCard with RRULE', () => {
 
   it('persists RRULE and DTSTART to disk', async () => {
     const due = new Date('2026-04-06T00:00:00.000Z');
-    const card = await createCard(
-      'Weekly',
-      'todo',
+    const card = await createCard({
+      summary: 'Weekly',
+      column: 'todo',
       due,
-      false,
-      undefined,
-      undefined,
-      'FREQ=WEEKLY;BYDAY=MO'
-    );
+      dueHasTime: false,
+      rrule: 'FREQ=WEEKLY;BYDAY=MO',
+    });
 
     const read = await readCard(card.id);
     expect(read!.rrule).toBe('FREQ=WEEKLY;BYDAY=MO');
@@ -1370,7 +1348,7 @@ describe('createCard with RRULE', () => {
   });
 
   it('does not set dtstart when no rrule is provided', async () => {
-    const card = await createCard('Plain task', 'todo');
+    const card = await createCard({ summary: 'Plain task', column: 'todo' });
     expect(card.dtstart).toBeUndefined();
   });
 });
@@ -1531,14 +1509,14 @@ describe('readAllCards validation', () => {
   });
 
   it('returns all cards when all files are valid', async () => {
-    await createCard('Task A', 'todo');
-    await createCard('Task B', 'in-progress');
+    await createCard({ summary: 'Task A', column: 'todo' });
+    await createCard({ summary: 'Task B', column: 'in-progress' });
     const cards = await readAllCards();
     expect(cards).toHaveLength(2);
   });
 
   it('throws when a file contains RECURRENCE-ID', async () => {
-    await createCard('Normal task', 'todo');
+    await createCard({ summary: 'Normal task', column: 'todo' });
     const badIcs = makeICS('bad-1', ['RECURRENCE-ID;VALUE=DATE:20260401', 'STATUS:COMPLETED']);
     await writeFile(nodePath.join(tempDir, 'bad-1.ics'), badIcs, 'utf-8');
 

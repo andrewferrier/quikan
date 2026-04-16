@@ -1,4 +1,12 @@
+import { localDayStart, addDays, formatLocalDate } from './dateUtils';
+
 export type DueColor = 'red' | 'green' | 'grey';
+
+export const DUE_COLOR_CLASS: Record<DueColor, string> = {
+  red: 'text-red-600',
+  green: 'text-green-600',
+  grey: 'text-gray-400',
+};
 
 export interface DueDisplay {
   text: string;
@@ -43,12 +51,8 @@ function buildColor(dueDate: Date, hasTime: boolean, now: Date): DueColor {
 
 function buildText(dueDate: Date, hasTime: boolean, now: Date): string {
   const todayStart = localDayStart(now);
-
-  const windowStart = new Date(todayStart);
-  windowStart.setDate(windowStart.getDate() - 1); // include yesterday
-
-  const windowEnd = new Date(todayStart);
-  windowEnd.setDate(windowEnd.getDate() + 7); // exclude today+7
+  const windowStart = addDays(todayStart, -1);
+  const windowEnd = addDays(todayStart, 7);
 
   const dueDayStart = localDayStart(dueDate);
   const useDayOfWeek = dueDayStart >= windowStart && dueDayStart < windowEnd;
@@ -68,10 +72,6 @@ function buildText(dueDate: Date, hasTime: boolean, now: Date): string {
   return `${y}-${m}-${d}${timeStr}`;
 }
 
-function localDayStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function isSameLocalDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -80,25 +80,13 @@ function isSameLocalDay(a: Date, b: Date): boolean {
   );
 }
 
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
-}
-
-function dateToStr(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    String(date.getDate()).padStart(2, '0'),
-  ].join('-');
-}
-
 /**
  * Returns the earliest YYYY-MM-DD due date that makes a task eligible for
  * the given virtual column, or undefined for the "no due date" column.
  * Mirrors the server's computeVirtualColumnUpdates logic.
  */
 export function getEarliestDueForColumn(columnId: string, now = new Date()): string | undefined {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = localDayStart(now);
   const dow = today.getDay();
   const daysSinceMonday = dow === 0 ? 6 : dow - 1;
   const thisMonday = addDays(today, -daysSinceMonday);
@@ -113,23 +101,23 @@ export function getEarliestDueForColumn(columnId: string, now = new Date()): str
   switch (columnId) {
     case 'todo-today':
     case 'in-progress':
-      return dateToStr(today);
+      return formatLocalDate(today);
     case 'todo-tomorrow':
-      return dateToStr(addDays(today, 1));
+      return formatLocalDate(addDays(today, 1));
     case 'todo-this-week':
-      return dateToStr(addDays(today, 2));
+      return formatLocalDate(addDays(today, 2));
     case 'todo-this-weekend':
       // On Friday, thisSaturday === tomorrow, so use Sunday instead
-      return dateToStr(dow === 5 ? bounds.thisSunday : addDays(thisMonday, 5));
+      return formatLocalDate(dow === 5 ? bounds.thisSunday : addDays(thisMonday, 5));
     case 'todo-next-week':
     case 'todo-coming-week':
-      return dateToStr(bounds.nextMonday);
+      return formatLocalDate(bounds.nextMonday);
     case 'todo-next-weekend':
-      return dateToStr(bounds.nextSaturday);
+      return formatLocalDate(bounds.nextSaturday);
     case 'todo-following-week':
-      return dateToStr(bounds.nextNextMonday);
+      return formatLocalDate(bounds.nextNextMonday);
     case 'todo-future':
-      return dateToStr(addDays(today, 21));
+      return formatLocalDate(addDays(today, 21));
     default:
       return undefined;
   }

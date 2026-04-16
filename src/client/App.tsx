@@ -15,47 +15,15 @@ import Column from './components/Column';
 import CardDialog from './components/CardDialog';
 import AboutDialog from './components/AboutDialog';
 import { GET_COLUMNS, CREATE_CARD, MOVE_CARD, UPDATE_CARD, DELETE_CARD } from './gql/queries';
-import { formatDue } from './utils/dueDate';
-import { getEarliestDueForColumn } from './utils/dueDate';
+import { formatDue, getEarliestDueForColumn, DUE_COLOR_CLASS } from './utils/dueDate';
+import { priorityBgClass } from './components/Card';
+import { CardType, ColumnType } from './types';
 import {
   shouldPerformMove,
   computePendingMove,
   applyPendingMoves,
   PendingMove,
 } from './utils/dragLogic';
-
-interface CardType {
-  id: string;
-  uid?: string | null;
-  summary: string;
-  description?: string | null;
-  column: string;
-  priority?: number | null;
-  due?: string | null;
-  dueHasTime?: boolean | null;
-  completed?: string | null;
-  isRecurring?: boolean | null;
-  isRecurringChild?: boolean | null;
-  quikanRecurrenceId?: string | null;
-  rrule?: string | null;
-  rruleText?: string | null;
-  rruleSupported?: boolean | null;
-  rdates?: string[] | null;
-  exdates?: string[] | null;
-}
-
-interface ColumnType {
-  id: string;
-  name: string;
-  hiddenCount: number;
-  cards: CardType[];
-}
-
-const DUE_COLOR_CLASS = {
-  red: 'text-red-600',
-  green: 'text-green-600',
-  grey: 'text-gray-400',
-} as const;
 
 const App: React.FC = () => {
   const [draggingCard, setDraggingCard] = useState<CardType | null>(null);
@@ -89,6 +57,9 @@ const App: React.FC = () => {
 
   const pendingCardIds = useMemo(() => new Set(pendingMoves.map((m) => m.cardId)), [pendingMoves]);
 
+  const writeColumns = (columns: ColumnType[]) =>
+    client.writeQuery({ query: GET_COLUMNS, data: { columns } });
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -121,7 +92,7 @@ const App: React.FC = () => {
     try {
       const result = await moveCard({ variables: { id: active.id as string, targetColumn } });
       if (result.data?.moveCard) {
-        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.moveCard } });
+        writeColumns(result.data.moveCard);
       }
     } catch {
       toast.error('Could not move todo — server unreachable.');
@@ -156,7 +127,7 @@ const App: React.FC = () => {
         },
       });
       if (result.data?.createCard) {
-        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.createCard } });
+        writeColumns(result.data.createCard);
       }
     } catch {
       toast.error('Could not create todo — server unreachable.');
@@ -189,7 +160,7 @@ const App: React.FC = () => {
         },
       });
       if (result.data?.updateCard) {
-        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.updateCard } });
+        writeColumns(result.data.updateCard);
       }
     } catch {
       toast.error('Could not save todo — server unreachable.');
@@ -202,7 +173,7 @@ const App: React.FC = () => {
       const result = await deleteCard({ variables: { id: editingCard.id } });
       setEditingCard(null);
       if (result.data?.deleteCard) {
-        client.writeQuery({ query: GET_COLUMNS, data: { columns: result.data.deleteCard } });
+        writeColumns(result.data.deleteCard);
       }
     } catch {
       toast.error('Could not delete todo — server unreachable.');
@@ -311,7 +282,7 @@ const App: React.FC = () => {
           <DragOverlay dropAnimation={null}>
             {draggingCard ? (
               <div
-                className={`rotate-2 p-4 rounded-lg shadow-xl border border-gray-200 opacity-95 cursor-grabbing ${draggingCard.priority && draggingCard.priority >= 7 ? 'bg-red-100' : draggingCard.priority && draggingCard.priority >= 4 ? 'bg-yellow-100' : draggingCard.priority ? 'bg-blue-100' : 'bg-white'}`}
+                className={`rotate-2 p-4 rounded-lg shadow-xl border border-gray-200 opacity-95 cursor-grabbing ${priorityBgClass(draggingCard.priority)}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm text-gray-800">{draggingCard.summary}</p>
