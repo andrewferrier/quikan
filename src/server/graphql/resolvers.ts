@@ -173,38 +173,53 @@ export function getTodoVirtualColumn(card: Card, now: Date): string {
  */
 export function computeVirtualColumnUpdates(
   targetColumn: string,
-  now: Date
+  now: Date,
+  existingCard?: Card
 ): Partial<Card> | 'unchanged' {
   const updates: Partial<Card> = { column: 'todo' };
   const today = localDayStart(now);
   const dow = today.getDay();
   const bounds = getWeekBounds(today);
 
-  const setUTCDate = (d: Date) => {
-    updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    updates.dueHasTime = false;
+  const setDate = (d: Date) => {
+    if (existingCard?.dueHasTime && existingCard?.due) {
+      const existing = existingCard.due;
+      updates.due = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        existing.getHours(),
+        existing.getMinutes(),
+        existing.getSeconds(),
+        existing.getMilliseconds()
+      );
+      updates.dueHasTime = true;
+    } else {
+      updates.due = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      updates.dueHasTime = false;
+    }
   };
 
   if (targetColumn === 'todo-today') {
-    setUTCDate(today);
+    setDate(today);
   } else if (targetColumn === 'todo-tomorrow') {
-    setUTCDate(addLocalDays(today, 1));
+    setDate(addLocalDays(today, 1));
   } else if (targetColumn === 'todo-this-week') {
     // today+2 always falls within the Mon–Wed "this week" range
-    setUTCDate(addLocalDays(today, 2));
+    setDate(addLocalDays(today, 2));
   } else if (targetColumn === 'todo-this-weekend') {
     // On Sat/Sun the weekend is already covered by Today/Tomorrow, so no-op
     if (dow === 6 || dow === 0) return 'unchanged';
     // On Friday thisSaturday = tomorrow, so use Sunday instead
-    setUTCDate(dow === 5 ? bounds.thisSunday : bounds.thisSaturday);
+    setDate(dow === 5 ? bounds.thisSunday : bounds.thisSaturday);
   } else if (targetColumn === 'todo-next-week' || targetColumn === 'todo-coming-week') {
-    setUTCDate(bounds.nextMonday);
+    setDate(bounds.nextMonday);
   } else if (targetColumn === 'todo-next-weekend') {
-    setUTCDate(bounds.nextSaturday);
+    setDate(bounds.nextSaturday);
   } else if (targetColumn === 'todo-following-week') {
-    setUTCDate(bounds.nextNextMonday);
+    setDate(bounds.nextNextMonday);
   } else if (targetColumn === 'todo-future') {
-    setUTCDate(addLocalDays(today, 21));
+    setDate(addLocalDays(today, 21));
   } else if (targetColumn === 'todo') {
     updates.due = undefined;
     updates.dueHasTime = undefined;
@@ -461,7 +476,8 @@ export const resolvers = {
       { id, targetColumn }: { id: string; targetColumn: string }
     ): Promise<Column[]> => {
       if (ALL_VIRTUAL_TODO_COL_IDS.has(targetColumn)) {
-        const result = computeVirtualColumnUpdates(targetColumn, getNow());
+        const existing = await readCard(id);
+        const result = computeVirtualColumnUpdates(targetColumn, getNow(), existing ?? undefined);
         if (result !== 'unchanged') {
           await updateCardStorage(id, result);
         }

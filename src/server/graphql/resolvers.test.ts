@@ -564,4 +564,61 @@ describe('computeVirtualColumnUpdates', () => {
   it('returns "unchanged" for unknown column', () => {
     expect(computeVirtualColumnUpdates('todo-dated', NOW_WED)).toBe('unchanged');
   });
+
+  describe('time preservation', () => {
+    const cardWithTime: Card = {
+      ...base,
+      id: 'x',
+      uid: 'x',
+      due: new Date('2026-04-01T14:30:00'), // local time 14:30
+      dueHasTime: true,
+    };
+
+    it('preserves the time when moving a card with a time to todo-tomorrow', () => {
+      const result = computeVirtualColumnUpdates('todo-tomorrow', NOW_WED, cardWithTime);
+      expect(result).not.toBe('unchanged');
+      const updates = result as Partial<Card>;
+      const due = updates.due!;
+      expect(due.getFullYear()).toBe(2026);
+      expect(due.getMonth()).toBe(3); // April
+      expect(due.getDate()).toBe(2); // Apr 2 (tomorrow)
+      expect(due.getHours()).toBe(14);
+      expect(due.getMinutes()).toBe(30);
+      expect(updates.dueHasTime).toBe(true);
+    });
+
+    it('preserves the time when moving a card with a time to todo-next-week', () => {
+      const result = computeVirtualColumnUpdates('todo-next-week', NOW_WED, cardWithTime);
+      expect(result).not.toBe('unchanged');
+      const updates = result as Partial<Card>;
+      const due = updates.due!;
+      expect(due.getDate()).toBe(6); // Apr 6 (next Monday)
+      expect(due.getHours()).toBe(14);
+      expect(due.getMinutes()).toBe(30);
+      expect(updates.dueHasTime).toBe(true);
+    });
+
+    it('clears time when moving a card without a time', () => {
+      const cardWithoutTime: Card = {
+        ...base,
+        id: 'y',
+        uid: 'y',
+        due: new Date(Date.UTC(2026, 3, 1)),
+        dueHasTime: false,
+      };
+      const result = computeVirtualColumnUpdates('todo-tomorrow', NOW_WED, cardWithoutTime);
+      expect(result).not.toBe('unchanged');
+      const updates = result as Partial<Card>;
+      expect(updates.dueHasTime).toBe(false);
+      expect(updates.due).toEqual(new Date(Date.UTC(2026, 3, 2)));
+    });
+
+    it('clears due date and time when moving to todo (no date) even with a timed card', () => {
+      const result = computeVirtualColumnUpdates('todo', NOW_WED, cardWithTime);
+      expect(result).not.toBe('unchanged');
+      const updates = result as Partial<Card>;
+      expect(updates.due).toBeUndefined();
+      expect(updates.dueHasTime).toBeUndefined();
+    });
+  });
 });
