@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/andrewferrier/quikan/compare/v1.1.0...v1.1.1) (2026-04-16)
+
+
+### Bug Fixes
+
+* Move build of Docker to release-please ([853a13c](https://github.com/andrewferrier/quikan/commit/853a13c3c46fbde465615004210e6a4cba36bc11))
+
 ## [1.1.0](https://github.com/andrewferrier/quikan/compare/v1.0.0...v1.1.0) (2026-04-16)
 
 
