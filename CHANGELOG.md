@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/andrewferrier/quikan/compare/v1.0.0...v1.1.0) (2026-04-16)
+
+
+### Features
+
+* add hamburger menu with About dialog showing version ([f6cbcb6](https://github.com/andrewferrier/quikan/commit/f6cbcb689e748902a16455362be5e2deaeea73b3))
+* Publish quikan images to ghcr ([980d605](https://github.com/andrewferrier/quikan/commit/980d60518dfb03e5a6dcf37b1d211eb08ac3787f))
+
+
+### Bug Fixes
+
+* Capture version when built as Docker ([62d90ba](https://github.com/andrewferrier/quikan/commit/62d90baf72da7a1f6ca608e3f7e04fa90b1c29dd))
+* Include git in Docker ([0c7b87c](https://github.com/andrewferrier/quikan/commit/0c7b87ce9798624cc1c8326b35e72c71d35d17d3))
+* Preserve time when card is moved from one column to another ([5e91731](https://github.com/andrewferrier/quikan/commit/5e91731166e068ec64aa9fc6b12ade51db9e7736))
+* Show git version in docker ([23c3c84](https://github.com/andrewferrier/quikan/commit/23c3c8492d8cd2bc50e2efd02e84f0c0d69cbc6e))
+
 ## 1.0.0 (2026-04-15)
 
 
