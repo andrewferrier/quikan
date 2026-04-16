@@ -1,12 +1,12 @@
 # Build stage
 FROM node:20-alpine AS builder
-RUN apk add --no-cache git
+ARG VERSION=unknown
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-RUN git describe --tags --always 2>/dev/null > /app/dist/version.txt || echo 'unknown' > /app/dist/version.txt
+RUN echo "$VERSION" > /app/dist/version.txt
 
 # Production stage
 FROM node:20-alpine
