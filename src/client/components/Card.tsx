@@ -129,16 +129,24 @@ const Card: React.FC<CardProps> = ({
       data-pending={pending ? 'true' : undefined}
       className={`${priorityBgClass(priority)} p-4 rounded-lg shadow-sm border ${dueDisplay?.color === 'red' ? 'border-red-400' : 'border-gray-200'} ${pending ? 'opacity-50 grayscale cursor-default' : 'cursor-pointer hover:shadow-md'} transition-shadow`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm text-gray-800" data-testid="card-summary">
+      <div className="flex flex-wrap items-start gap-2">
+        <p
+          className="text-sm text-gray-800 grow min-w-0 break-words"
+          style={{ flexBasis: 'min-content' }}
+          data-testid="card-summary"
+        >
           {summary}
         </p>
         {dueDisplay && (
           <span
             data-testid="due-date"
-            className={`text-xs whitespace-nowrap shrink-0 ${DUE_COLOR_CLASS[dueDisplay.color]}`}
+            className={`text-xs shrink-0 ml-auto text-right ${DUE_COLOR_CLASS[dueDisplay.color]}`}
           >
-            {dueDisplay.text}
+            {dueDisplay.text.split(' ').map((part, i) => (
+              <span key={i} className="block whitespace-nowrap">
+                {part}
+              </span>
+            ))}
           </span>
         )}
       </div>

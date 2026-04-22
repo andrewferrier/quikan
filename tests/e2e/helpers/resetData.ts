@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { LAYOUT_CARD_DEFS } from './layoutCardFixtures';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,4 +120,9 @@ export function resetData(now: Date = new Date()): void {
       'COMPLETED:20260101T120000Z',
     ])
   );
+
+  // Layout test cards (16 variants: 4 title types × 4 date formats)
+  for (const { uid, summary, dateExtras } of LAYOUT_CARD_DEFS) {
+    writeDynamic(uid, makeCard(uid, summary, dateExtras(today)));
+  }
 }

@@ -26,6 +26,7 @@ npm-debug.log*
 
 # Testing
 coverage/
+tests/e2e/screenshots/
 
 # Temporary files
 *.tmp
