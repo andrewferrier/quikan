@@ -26,10 +26,18 @@ jobs:
       - name: Capture demo screenshot
         run: npm run screenshot
 
-      - name: Commit screenshot if changed
+      - name: Commit screenshot if pixels changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git show HEAD:screenshot.png > /tmp/screenshot_old.png 2>/dev/null || true
+          if [ -s /tmp/screenshot_old.png ]; then
+            PIXEL_DIFF=$(compare -metric AE /tmp/screenshot_old.png screenshot.png /dev/null 2>&1) || true
+            if [ "$PIXEL_DIFF" = "0" ]; then
+              echo "No pixel changes, skipping commit."
+              exit 0
+            fi
+          fi
           git add screenshot.png
-          git diff --staged --quiet || git commit -m "chore: update demo screenshot [skip ci]"
+          git commit -m "chore: update demo screenshot [skip ci]"
           git push
