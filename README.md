@@ -2,6 +2,8 @@
 
 A web-based Kanban board that uses VTODO (iCalendar) files as a backend.
 
+![Quikan board screenshot](./screenshot.png)
+
 ## Features
 
 - **VTODO Backend**: Each task is stored as a separate `.ics` file using the VTODO format
