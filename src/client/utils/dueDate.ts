@@ -1,4 +1,4 @@
-import { localDayStart, addDays, formatLocalDate } from './dateUtils';
+import { localDayStart, addDays, formatLocalDate, getWeekBounds } from './dateUtils';
 
 export type DueColor = 'red' | 'green' | 'grey';
 
@@ -88,15 +88,7 @@ function isSameLocalDay(a: Date, b: Date): boolean {
 export function getEarliestDueForColumn(columnId: string, now = new Date()): string | undefined {
   const today = localDayStart(now);
   const dow = today.getDay();
-  const daysSinceMonday = dow === 0 ? 6 : dow - 1;
-  const thisMonday = addDays(today, -daysSinceMonday);
-
-  const bounds = {
-    thisSunday: addDays(thisMonday, 6),
-    nextMonday: addDays(thisMonday, 7),
-    nextSaturday: addDays(thisMonday, 12),
-    nextNextMonday: addDays(thisMonday, 14),
-  };
+  const bounds = getWeekBounds(today);
 
   switch (columnId) {
     case 'todo-today':
@@ -108,7 +100,7 @@ export function getEarliestDueForColumn(columnId: string, now = new Date()): str
       return formatLocalDate(addDays(today, 2));
     case 'todo-this-weekend':
       // On Friday, thisSaturday === tomorrow, so use Sunday instead
-      return formatLocalDate(dow === 5 ? bounds.thisSunday : addDays(thisMonday, 5));
+      return formatLocalDate(dow === 5 ? bounds.thisSunday : bounds.thisSaturday);
     case 'todo-next-week':
     case 'todo-coming-week':
       return formatLocalDate(bounds.nextMonday);

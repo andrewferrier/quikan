@@ -2,7 +2,7 @@
  * Pure drag-and-drop logic — extracted for testability.
  */
 
-import { localDayStart, addDays } from './dateUtils';
+import { localDayStart, addDays, getWeekBounds } from './dateUtils';
 
 export interface DraggableCard {
   id: string;
@@ -46,26 +46,6 @@ function formatDateOnly(d: Date): string {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-interface WeekBounds {
-  thisSaturday: Date;
-  thisSunday: Date;
-  nextMonday: Date;
-  nextSaturday: Date;
-  nextNextMonday: Date;
-}
-
-function getWeekBounds(today: Date): WeekBounds {
-  const dow = today.getDay();
-  const thisMonday = addDays(today, dow === 0 ? -6 : 1 - dow);
-  return {
-    thisSaturday: addDays(thisMonday, 5),
-    thisSunday: addDays(thisMonday, 6),
-    nextMonday: addDays(thisMonday, 7),
-    nextSaturday: addDays(thisMonday, 12),
-    nextNextMonday: addDays(thisMonday, 14),
-  };
 }
 
 function toUTCDate(local: Date): Date {

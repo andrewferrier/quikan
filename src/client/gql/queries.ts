@@ -23,8 +23,6 @@ const COLUMN_FIELDS = gql`
       rdates
       exdates
       completed
-      created
-      modified
     }
   }
 `;

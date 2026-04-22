@@ -1,13 +1,6 @@
 import { readAllCards } from '../storage/vtodo.js';
 import { Card, Column } from '../types.js';
-
-function localDayStart(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function addLocalDays(date: Date, days: number): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
-}
+import { localDayStart, addLocalDays } from '../utils/dateUtils.js';
 
 interface WeekBounds {
   thisWeekFriday: Date;
