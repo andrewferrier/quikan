@@ -15,7 +15,7 @@
     "start": "node dist/server/index.js",
     "test": "TZ=UTC NODE_OPTIONS=--experimental-vm-modules jest && playwright test",
     "playwright": "playwright test",
-    "screenshot": "playwright test tests/e2e/screenshot.spec.ts",
+    "screenshot": "tsx scripts/screenshot.ts",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\""

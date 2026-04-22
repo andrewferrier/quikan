@@ -1,14 +1,15 @@
-import { test } from '@playwright/test';
+import { chromium } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn, ChildProcess } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const QUIKAN_DATA = path.resolve(__dirname, '../../data');
-const REPO_ROOT = path.resolve(__dirname, '../../');
-
+const QUIKAN_DATA = path.resolve(__dirname, '../data');
+const REPO_ROOT = path.resolve(__dirname, '..');
+const BASE_URL = 'http://localhost:5173';
 const FAKE_NOW = '2026-04-21T09:00:00.000Z';
 const FAKE_DATE = new Date('2026-04-21T00:00:00Z');
 
@@ -60,7 +61,6 @@ function seedDemoData(): void {
   const nextWeek = addDays(today, 7); // Next Monday
   const future = addDays(today, 45);
 
-  // Today
   write(
     'demo-today-1',
     ics('demo-today-1', 'Review pull request: user auth refactor', [
@@ -78,7 +78,6 @@ function seedDemoData(): void {
   );
   write('demo-today-3', ics('demo-today-3', 'Pay electricity bill', [`DUE;VALUE=DATE:${fmt(today)}`]));
 
-  // Tomorrow
   write(
     'demo-tomorrow-1',
     ics('demo-tomorrow-1', 'Prepare sprint retrospective notes', [
@@ -91,7 +90,6 @@ function seedDemoData(): void {
     ics('demo-tomorrow-2', 'Buy birthday present for Mum', [`DUE;VALUE=DATE:${fmt(tomorrow)}`])
   );
 
-  // This week
   write(
     'demo-this-week-1',
     ics('demo-this-week-1', 'Migrate database to new schema', [
@@ -105,7 +103,6 @@ function seedDemoData(): void {
     ics('demo-this-week-2', 'Update project documentation', [`DUE;VALUE=DATE:${fmt(thisWeek)}`])
   );
 
-  // This weekend
   write(
     'demo-weekend-1',
     ics('demo-weekend-1', 'Clean and reorganise home office', [`DUE;VALUE=DATE:${fmt(thisWeekend)}`])
@@ -118,7 +115,6 @@ function seedDemoData(): void {
     ])
   );
 
-  // Next week
   write(
     'demo-next-week-1',
     ics('demo-next-week-1', 'Quarterly performance review', [
@@ -131,7 +127,6 @@ function seedDemoData(): void {
     ics('demo-next-week-2', 'Renew car insurance', [`DUE;VALUE=DATE:${fmt(nextWeek)}`])
   );
 
-  // Future
   write(
     'demo-future-1',
     ics('demo-future-1', 'Plan summer holiday', [
@@ -140,11 +135,9 @@ function seedDemoData(): void {
     ])
   );
 
-  // No due date
   write('demo-nodate-1', ics('demo-nodate-1', 'Read "Designing Data-Intensive Applications"'));
   write('demo-nodate-2', ics('demo-nodate-2', 'Set up home NAS server', ['PRIORITY:2']));
 
-  // In progress
   write(
     'demo-inprogress-1',
     ics('demo-inprogress-1', 'Redesign onboarding flow', [
@@ -161,7 +154,6 @@ function seedDemoData(): void {
     ])
   );
 
-  // Done (recent)
   write(
     'demo-done-1',
     ics('demo-done-1', 'Deploy v2.1.0 to production', [
@@ -177,7 +169,6 @@ function seedDemoData(): void {
     ])
   );
 
-  // Recurring task (weekly standup reminder)
   write(
     'demo-recurring-1',
     ics('demo-recurring-1', 'Weekly team standup prep', [
@@ -189,20 +180,70 @@ function seedDemoData(): void {
   );
 }
 
-test('capture demo screenshot', async ({ page, request }) => {
-  await request.post('/graphql', {
-    data: { query: `mutation { setTestNow(iso: "${FAKE_NOW}") { id } }` },
+async function waitForServer(url: string, timeoutMs = 30000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fetch(url);
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+  throw new Error(`Server at ${url} did not become ready within ${timeoutMs}ms`);
+}
+
+async function graphql(query: string): Promise<void> {
+  await fetch(`${BASE_URL}/graphql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+}
+
+async function main(): Promise<void> {
+  let devServer: ChildProcess | undefined;
+
+  const cleanup = () => {
+    if (devServer) {
+      devServer.kill('SIGTERM');
+    }
+  };
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => process.exit(1));
+  process.on('SIGTERM', () => process.exit(1));
+
+  console.log('Starting dev server...');
+  devServer = spawn('npm', ['run', 'dev'], {
+    cwd: REPO_ROOT,
+    stdio: 'ignore',
+    detached: false,
   });
 
+  await waitForServer(BASE_URL);
+  console.log('Dev server ready.');
+
+  await graphql(`mutation { setTestNow(iso: "${FAKE_NOW}") { id } }`);
   seedDemoData();
 
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
   await page.setViewportSize({ width: 1920, height: 900 });
-  await page.goto('/');
+  await page.goto(BASE_URL);
   await page.locator('[data-testid="card"]').first().waitFor({ state: 'visible', timeout: 15000 });
 
-  await page.screenshot({ path: path.join(REPO_ROOT, 'screenshot.png') });
+  const screenshotPath = path.join(REPO_ROOT, 'screenshot.png');
+  await page.screenshot({ path: screenshotPath });
+  console.log(`Screenshot saved to ${screenshotPath}`);
 
-  await request.post('/graphql', {
-    data: { query: 'mutation { clearTestNow { id } }' },
-  });
+  await browser.close();
+  await graphql('mutation { clearTestNow { id } }');
+
+  cleanup();
+  process.off('exit', cleanup);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });
