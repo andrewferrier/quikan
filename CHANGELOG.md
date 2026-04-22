@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.2.0](https://github.com/andrewferrier/quikan/compare/v1.1.1...v1.2.0) (2026-04-22)
+
+
+### Features
+
+* Add dynamically created screenshot ([13218c1](https://github.com/andrewferrier/quikan/commit/13218c1a7b85b055ca616cd15450aea92b63c8e3))
+
+
+### Bug Fixes
+
+* Don't commit unless pixels have changed ([887d2f2](https://github.com/andrewferrier/quikan/commit/887d2f2ff5d2805f0498c54ec044010c1b9213bc))
+* Don't regen screenshot with tests - closes [#23](https://github.com/andrewferrier/quikan/issues/23) ([3b7a518](https://github.com/andrewferrier/quikan/commit/3b7a518ea5b8637e87f8b61d24f59e711f7c8622))
+* Make sure text wraps and doesn't overlap ([7d839d6](https://github.com/andrewferrier/quikan/commit/7d839d69dc8fc90ee00a7eda7c1702d663a762ef))
+
+
+### Performance Improvements
+
+* Make built image smaller ([c3519fc](https://github.com/andrewferrier/quikan/commit/c3519fc013c46bf63a28f2374ccc354e203e4a2f))
+
 ## [1.1.1](https://github.com/andrewferrier/quikan/compare/v1.1.0...v1.1.1) (2026-04-16)
 
 
